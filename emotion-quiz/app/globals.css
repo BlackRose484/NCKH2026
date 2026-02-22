@@ -1,0 +1,152 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Duolingo-inspired Design System */
+:root {
+  --color-primary-green: #22c55e;
+  --color-primary-sky: #0ea5e9;
+  --color-text: #525252;
+  --color-border: #e2e8f0;
+  
+  --font-primary: 'Poppins', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* Base Styles */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-primary);
+  background: #ffffff;
+  min-height: 100vh;
+  color: #525252;
+  overflow-x: hidden;
+}
+
+/* Custom Animations */
+@keyframes float {
+  0%, 100% { 
+    transform: translateY(0px); 
+  }
+  50% { 
+    transform: translateY(-20px); 
+  }
+}
+
+@keyframes bounce-in {
+  0% { 
+    transform: scale(0.3); 
+    opacity: 0; 
+  }
+  50% { 
+    transform: scale(1.05); 
+  }
+  100% { 
+    transform: scale(1); 
+    opacity: 1; 
+  }
+}
+
+@keyframes slide-up {
+  from { 
+    transform: translateY(30px); 
+    opacity: 0; 
+  }
+  to { 
+    transform: translateY(0); 
+    opacity: 1; 
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-bounce-in {
+  animation: bounce-in 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.animate-slide-up {
+  animation: slide-up 0.5s ease-out;
+}
+
+/* Duolingo-style Button Base */
+@layer components {
+  .btn-duolingo {
+    @apply inline-flex items-center justify-center rounded-xl font-bold uppercase tracking-wide;
+    @apply border-2 border-b-4 active:border-b-2;
+    @apply transition-all duration-200;
+    @apply disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-primary {
+    @apply btn-duolingo bg-sky-400 text-white border-sky-500 hover:bg-sky-400/90;
+  }
+
+  .btn-secondary {
+    @apply btn-duolingo bg-green-500 text-white border-green-600 hover:bg-green-500/90;
+  }
+
+  .btn-outline {
+    @apply btn-duolingo bg-white text-slate-500 border-slate-200 hover:bg-slate-100;
+  }
+
+  .btn-danger {
+    @apply btn-duolingo bg-rose-500 text-white border-rose-600 hover:bg-rose-500/90;
+  }
+
+  /* Card Styles */
+  .card {
+    @apply bg-white rounded-2xl shadow-lg border-2 border-slate-200 p-6;
+    @apply transition-all duration-300;
+  }
+
+  /* Quiz Option Buttons - Duolingo Style */
+  .quiz-option {
+    @apply w-full p-4 rounded-xl border-2 border-b-4 active:border-b-2;
+    @apply text-left font-bold transition-all duration-200 cursor-pointer;
+    @apply border-slate-200 bg-white hover:bg-slate-50;
+  }
+
+  .quiz-option.selected {
+    @apply border-sky-300 bg-sky-50;
+  }
+
+  .quiz-option.correct {
+    @apply border-green-500 bg-green-50 border-b-4;
+  }
+
+  .quiz-option.incorrect {
+    @apply border-rose-500 bg-rose-50 border-b-4;
+  }
+
+  .quiz-option:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+
+  /* Text Input for Fill-in-the-blank */
+  .quiz-input {
+    @apply w-full p-4 rounded-xl border-2 border-slate-200;
+    @apply focus:border-sky-500 focus:outline-none;
+    @apply text-neutral-700 font-medium;
+    @apply transition-all duration-200;
+    @apply min-h-[100px] resize-y;
+  }
+
+  /* Progress Bar */
+  .progress-bar {
+    @apply w-full bg-slate-200 rounded-full h-4 overflow-hidden;
+  }
+
+  .progress-fill {
+    @apply h-full bg-green-500 rounded-full transition-all duration-500 ease-out;
+  }
+}
