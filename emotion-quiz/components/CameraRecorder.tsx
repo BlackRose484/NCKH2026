@@ -166,7 +166,8 @@ const CameraRecorder = ({
   }
 
   return (
-    <div className="relative w-full" style={{ minHeight: '360px' }}>
+    <div className="hidden">
+      {/* Camera records in background - hidden from students */}
       <video
         ref={videoRef}
         autoPlay
@@ -174,16 +175,7 @@ const CameraRecorder = ({
         muted
         width="640"
         height="480"
-        className="rounded-2xl overflow-hidden shadow-lg border-4 border-white w-full h-auto"
-        style={{ maxWidth: '640px', margin: '0 auto', display: 'block' }}
       />
-      
-      {cameraState.isRecording && (
-        <div className="absolute top-4 right-4 flex items-center gap-2 bg-red-500 text-white px-4 py-2 rounded-full font-bold shadow-lg">
-          <span className="w-3 h-3 bg-white rounded-full animate-pulse"></span>
-          REC
-        </div>
-      )}
     </div>
   );
 };

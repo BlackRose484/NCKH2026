@@ -358,130 +358,200 @@ export default function QuizPage() {
 
   const canSubmit = currentAnswer.trim().length >= MIN_ANSWER_LENGTH && !processingEmotion;
 
+  // Background images from back_asset - rotate per question
+  const bgImages = [
+    '/back_asset/minibannerCgAnimal-634ca53ff1fe5b881d23.webp',
+    '/back_asset/minibannerCgSpace-c7ae98e8df2d4fd0633f.webp',
+    '/back_asset/minibannerCgScience-f6a39d6f2d33678cbfb6.webp',
+    '/back_asset/minibannerCgRobot-3805fe37c839c9e9bd90.webp',
+    '/back_asset/minibannerCgPuzzle-9d13e3f094c49943ce76.webp',
+    '/back_asset/minibannerCgMath-21d55ef42aecef29a91a.webp',
+    '/back_asset/minibannerCgCat-1e4557f26d6de904caef.webp',
+    '/back_asset/minibannerCgSports-912a8c367e0916f549f2.webp',
+    '/back_asset/minibannerCgFood-aa328c0b7ff51250b86e.webp',
+    '/back_asset/minibannerCgArt-d8089f260688a5ece973.webp',
+  ];
+  const bgImg = bgImages[currentQuestionIndex % bgImages.length];
+
+  // Gradient palettes per question (cycle through fun gradients)
+  const gradients = [
+    'from-violet-400 via-purple-300 to-pink-300',
+    'from-sky-400 via-cyan-300 to-teal-300',
+    'from-orange-400 via-amber-300 to-yellow-200',
+    'from-rose-400 via-pink-300 to-fuchsia-300',
+    'from-emerald-400 via-green-300 to-lime-200',
+    'from-indigo-400 via-blue-300 to-cyan-200',
+    'from-amber-400 via-orange-300 to-rose-300',
+    'from-teal-400 via-emerald-300 to-green-200',
+    'from-fuchsia-400 via-violet-300 to-purple-200',
+    'from-cyan-400 via-sky-300 to-indigo-200',
+  ];
+  const gradient = gradients[currentQuestionIndex % gradients.length];
+
   // Show loading while quiz questions are being loaded
   if (quizQuestions.length === 0 || !currentQuestion) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-violet-400 to-pink-300 flex items-center justify-center">
         <div className="text-center">
-          <div className="inline-block w-12 h-12 border-4 border-gray-200 border-t-sky-500 rounded-full animate-spin mb-4"></div>
-          <p className="text-neutral-600">Đang tải câu hỏi...</p>
+          <div className="inline-block w-16 h-16 border-4 border-white/40 border-t-white rounded-full animate-spin mb-4"></div>
+          <p className="text-white font-bold text-xl">Đang tải câu hỏi... 🌟</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white p-4 py-8">
-      <div className="max-w-6xl mx-auto">
-        {/* Student Info Card */}
-        {studentInfo && (
-          <div className="card mb-6 bg-green-50 border-green-200">
-            <div className="flex items-center gap-3">
-              <Image src="/boy.svg" alt="Student" width={40} height={40} />
-              <div>
-                <p className="text-sm text-neutral-600">
-                  Học sinh: <strong className="text-neutral-800">{studentInfo.name}</strong>
-                </p>
-                <p className="text-xs text-neutral-500">
-                  Lớp: {studentInfo.class}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
+    <div className={`min-h-screen bg-gradient-to-br ${gradient} transition-all duration-700 relative overflow-hidden`}>
+      {/* Hidden camera recorder - records in background */}
+      <div className="hidden">
+        <CameraRecorder
+          onRecordingComplete={handleRecordingComplete}
+          isRecording={isRecording}
+          currentQuestionId={currentQuestion.id}
+        />
+      </div>
 
-        {/* Progress Bar */}
-        <div className="mb-8">
-          <ProgressBar 
-            current={currentQuestionIndex + 1} 
-            total={quizQuestions.length} 
+      {/* Decorative floating background elements */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-10 left-8 text-6xl opacity-20 animate-bounce" style={{animationDelay:'0s',animationDuration:'3s'}}>⭐</div>
+        <div className="absolute top-24 right-12 text-5xl opacity-20 animate-bounce" style={{animationDelay:'0.5s',animationDuration:'4s'}}>🌙</div>
+        <div className="absolute bottom-20 left-16 text-7xl opacity-20 animate-bounce" style={{animationDelay:'1s',animationDuration:'3.5s'}}>✨</div>
+        <div className="absolute bottom-32 right-8 text-5xl opacity-20 animate-bounce" style={{animationDelay:'1.5s',animationDuration:'4.5s'}}>🌈</div>
+        <div className="absolute top-1/2 left-4 text-4xl opacity-15 animate-pulse">💫</div>
+        <div className="absolute top-1/3 right-4 text-4xl opacity-15 animate-pulse" style={{animationDelay:'1s'}}>🎯</div>
+      </div>
+
+      {/* Top bar */}
+      <div className="relative z-10 px-4 pt-4 pb-2 flex items-center justify-between">
+        {/* Student info */}
+        <div className="flex items-center gap-2 bg-white/30 backdrop-blur-sm rounded-2xl px-4 py-2">
+          <span className="text-2xl">👦</span>
+          <div>
+            <p className="text-white font-bold text-sm leading-tight">{studentInfo?.name || 'Học sinh'}</p>
+            <p className="text-white/80 text-xs">Lớp {studentInfo?.class || '?'}</p>
+          </div>
+        </div>
+
+        {/* Question counter badge */}
+        <div className="bg-white/30 backdrop-blur-sm rounded-2xl px-4 py-2 text-center">
+          <p className="text-white font-bold text-sm">Câu hỏi</p>
+          <p className="text-white font-extrabold text-xl leading-tight">
+            {currentQuestionIndex + 1}
+            <span className="text-white/70 font-normal text-sm"> / {quizQuestions.length}</span>
+          </p>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="relative z-10 px-4 py-1">
+        <div className="bg-white/30 rounded-full h-3 overflow-hidden">
+          <div
+            className="bg-white h-3 rounded-full transition-all duration-500"
+            style={{ width: `${((currentQuestionIndex + 1) / quizQuestions.length) * 100}%` }}
           />
         </div>
+      </div>
 
-        {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Camera */}
-          <div className="order-2 lg:order-1">
-            <CameraRecorder
-              onRecordingComplete={handleRecordingComplete}
-              isRecording={isRecording}
-              currentQuestionId={currentQuestion.id}
-            />
-          </div>
+      {/* Main content */}
+      <div className="relative z-10 flex flex-col items-center px-4 py-4 gap-4 min-h-[calc(100vh-100px)]">
 
-          {/* Question */}
-          <div className="order-1 lg:order-2">
-            {!showFinish ? (
-              <div className="space-y-4">
-                <QuizQuestion
-                  question={currentQuestion}
-                  answerText={currentAnswer}
-                  onAnswerChange={setCurrentAnswer}
-                  isSubmitted={processingEmotion}
+        {!showFinish ? (
+          <>
+            {/* Background image mascot */}
+            <div className="flex justify-center">
+              <div className="w-28 h-28 rounded-3xl overflow-hidden shadow-2xl border-4 border-white/60 bg-white/20">
+                <img
+                  src={bgImg}
+                  alt="mascot"
+                  className="w-full h-full object-cover"
                 />
-                
-                {/* Submit Button */}
-                <button
-                  onClick={handleAnswerSubmit}
-                  disabled={!canSubmit}
-                  className={`btn-secondary w-full h-14 px-8 text-base ${
-                    !canSubmit ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
-                >
-                  {isLastQuestion ? 'Hoàn thành' : 'Tiếp theo'} →
-                </button>
-
-                {/* Early Submit Button */}
-                {!isLastQuestion && currentQuestionIndex > 0 && (
-                  <button
-                    onClick={() => {
-                      if (confirm('Bạn có chắc muốn nộp bài ngay? Các câu chưa trả lời sẽ bị bỏ qua.')) {
-                        finishQuiz();
-                      }
-                    }}
-                    disabled={processingEmotion}
-                    className="btn-primary w-full h-12 px-6 text-sm bg-orange-500 hover:bg-orange-600 border-orange-600"
-                  >
-                    📤 Nộp bài ngay
-                  </button>
-                )}
               </div>
-            ) : (
-              <div className="card text-center">
-                <div className="mb-6">
-                  <Image
-                    src="/finish.svg"
-                    alt="Finish"
-                    width={200}
-                    height={200}
-                    className="mx-auto"
-                  />
+            </div>
+
+            {/* Question card */}
+            <div className="w-full max-w-2xl bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl border-4 border-white p-6">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-orange-400 to-rose-500 flex items-center justify-center text-white font-black text-lg flex-shrink-0 shadow-lg">
+                  {currentQuestionIndex + 1}
                 </div>
-                <h2 className="text-2xl font-bold text-neutral-700 mb-3">
-                  Hoàn thành! 🎉
-                </h2>
-                <p className="text-neutral-600">
-                  Đang xử lý kết quả và lưu video...
+                <p className="text-neutral-800 font-bold text-xl leading-relaxed flex-1">
+                  {currentQuestion.question}
                 </p>
-                <div className="mt-4">
-                  <div className="inline-block w-8 h-8 border-4 border-gray-200 border-t-green-500 rounded-full animate-spin"></div>
-                </div>
               </div>
-            )}
-          </div>
-        </div>
 
-        {/* Processing Indicator */}
-        {processingEmotion && !showFinish && (
-          <div className="card mt-6 bg-blue-50 border-blue-200">
-            <div className="flex items-center justify-center gap-3">
-              <div className="w-5 h-5 border-3 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-              <p className="text-blue-700 font-medium text-sm">
-                Đang lưu câu trả lời...
-              </p>
+              {/* Answer textarea */}
+              <textarea
+                value={currentAnswer}
+                onChange={e => setCurrentAnswer(e.target.value)}
+                placeholder={currentQuestion.placeholder || 'Hãy viết câu trả lời của bạn vào đây... 📝'}
+                disabled={processingEmotion}
+                rows={4}
+                className="w-full rounded-2xl border-3 border-orange-200 bg-orange-50 p-4 text-neutral-700 text-lg font-medium placeholder-orange-300 focus:outline-none focus:border-orange-400 focus:bg-white resize-none transition-all duration-200 shadow-inner"
+                style={{ borderWidth: '3px' }}
+              />
+
+              {/* Character count */}
+              <div className="flex justify-between items-center mt-2">
+                <span className="text-sm text-neutral-400">
+                  {currentAnswer.length > 0
+                    ? currentAnswer.length >= MIN_ANSWER_LENGTH
+                      ? '✅ Câu trả lời hợp lệ!'
+                      : `Cần thêm ${MIN_ANSWER_LENGTH - currentAnswer.length} ký tự nữa`
+                    : 'Hãy viết câu trả lời của bạn'}
+                </span>
+                <span className="text-sm text-neutral-400">{currentAnswer.length} ký tự</span>
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="w-full max-w-2xl flex flex-col gap-3">
+              {/* Next / Finish button */}
+              <button
+                onClick={handleAnswerSubmit}
+                disabled={!canSubmit}
+                className={`w-full h-16 rounded-3xl font-black text-xl text-white shadow-2xl transition-all duration-200 flex items-center justify-center gap-3
+                  ${canSubmit
+                    ? 'bg-gradient-to-r from-orange-400 to-rose-500 hover:from-orange-500 hover:to-rose-600 active:scale-95 hover:shadow-orange-300 hover:shadow-xl'
+                    : 'bg-orange-100 text-orange-300 cursor-not-allowed'
+                  }`}
+              >
+                {isLastQuestion ? (
+                  <><span>🎉</span> Nộp bài</>
+                ) : (
+                  <><span>➡️</span> Câu tiếp theo</>
+                )}
+              </button>
+
+              {/* Early submit */}
+              {!isLastQuestion && currentQuestionIndex > 0 && (
+                <button
+                  onClick={() => {
+                    if (confirm('Bạn có chắc muốn nộp bài ngay? Các câu chưa trả lời sẽ bị bỏ qua.')) {
+                      finishQuiz();
+                    }
+                  }}
+                  disabled={processingEmotion}
+                  className="w-full h-11 rounded-2xl font-bold text-sm text-white/90 bg-white/25 border-2 border-white/40 hover:bg-white/35 transition-all backdrop-blur-sm"
+                >
+                  📤 Nộp bài sớm
+                </button>
+              )}
+            </div>
+          </>
+        ) : (
+          /* Finish screen */
+          <div className="flex-1 flex items-center justify-center w-full">
+            <div className="text-center bg-white/90 backdrop-blur-sm rounded-3xl p-10 shadow-2xl border-4 border-white max-w-sm w-full mx-4">
+              <div className="text-8xl mb-4 animate-bounce">🎉</div>
+              <h2 className="text-3xl font-black text-orange-600 mb-2">Xuất sắc!</h2>
+              <p className="text-neutral-600 font-medium mb-6">Đang lưu kết quả của bạn...</p>
+              <div className="flex justify-center">
+                <div className="w-10 h-10 border-4 border-orange-200 border-t-orange-500 rounded-full animate-spin"></div>
+              </div>
             </div>
           </div>
         )}
+
       </div>
     </div>
   );
