@@ -51,6 +51,46 @@ const psychologyQuestions: Question[] = [
   { id: 30, question: 'Khi em buồn, em', category: 'Bản thân', placeholder: 'Ví dụ: khóc, tự ở một mình...' },
 ];
 
+// Emotion Mastery Quiz — Multiple Choice Questions
+const emotionMasteryQuestions: Question[] = [
+  {
+    id: 1,
+    question: 'Khi em cảm thấy tức giận, em thường làm gì đầu tiên?',
+    category: 'Nhận biết cảm xúc',
+    type: 'multiple-choice',
+    options: [
+      'Hít thở sâu và đếm đến 10 để bình tĩnh lại',
+      'Nói chuyện với người thân hoặc bạn bè về cảm xúc đó',
+      'La hét hoặc đập phá đồ vật xung quanh',
+      'Im lặng và tự mình giải quyết',
+    ],
+  },
+  {
+    id: 2,
+    question: 'Khi bạn thân của em buồn, em thường làm gì?',
+    category: 'Đồng cảm',
+    type: 'multiple-choice',
+    options: [
+      'Ngồi lắng nghe và hỏi thăm bạn cảm thấy thế nào',
+      'Kể chuyện vui để làm bạn cười',
+      'Để bạn một mình vì không biết phải nói gì',
+      'Giả vờ như không thấy để tránh khó xử',
+    ],
+  },
+  {
+    id: 3,
+    question: 'Em xử lý như thế nào khi bị điểm kém trong bài kiểm tra?',
+    category: 'Kiểm soát cảm xúc',
+    type: 'multiple-choice',
+    options: [
+      'Xem lại bài, tìm hiểu chỗ sai và cố gắng hơn lần sau',
+      'Buồn một lúc rồi bỏ qua và không để tâm nữa',
+      'Đổ lỗi cho thầy cô ra đề khó',
+      'Giận dữ và không muốn học nữa',
+    ],
+  },
+];
+
 // Quiz Sets Registry
 export const quizSets: QuizSet[] = [
   {
@@ -64,7 +104,17 @@ export const quizSets: QuizSet[] = [
     color: 'from-purple-500 to-pink-500',
     questions: psychologyQuestions,
   },
-  // More quiz sets can be added here in the future
+  {
+    id: 'emotion-mastery-v1',
+    name: 'Làm chủ cảm xúc',
+    description: 'Bộ câu hỏi giúp đánh giá khả năng nhận biết và quản lý cảm xúc của bạn',
+    category: 'Cảm xúc',
+    totalQuestions: 3,
+    estimatedMinutes: 5,
+    icon: '🎯',
+    color: 'from-orange-500 to-rose-500',
+    questions: emotionMasteryQuestions,
+  },
 ];
 
 // Helper function to get quiz set by ID

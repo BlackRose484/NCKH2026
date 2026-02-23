@@ -4,7 +4,9 @@ export interface Question {
   id: number;
   question: string;
   category?: string;
-  placeholder?: string; // Placeholder text for input field
+  placeholder?: string;
+  type?: 'text' | 'multiple-choice'; // default 'text'
+  options?: string[];               // MC answer choices
 }
 
 export interface TextSentimentScore {
@@ -26,12 +28,20 @@ export interface TextSentimentScore {
 
 export interface QuizAnswer {
   questionId: number;
-  answerText: string; // User's text answer
-  isAnswered: boolean; // Whether question was answered
+  answerText: string;
+  selectedOption?: number;          // index of selected MC option
+  isAnswered: boolean;
   timestamp: string;
-  emotion?: EmotionResult; // Per-question emotion (critical for correlation)
-  videoFilename?: string; // Reference to video file
-  textSentiment?: TextSentimentScore;  // NEW: LLM sentiment analysis
+  emotion?: EmotionResult;
+  videoFilename?: string;
+  textSentiment?: TextSentimentScore;
+  engagementScore?: EngagementScore; // engagement API result
+}
+
+export interface EngagementScore {
+  level: number | null;             // engagement level from API
+  raw?: Record<string, unknown>;    // raw API response
+  analyzedAt: string;
 }
 
 export type EmotionType = 
@@ -62,14 +72,15 @@ export interface StudentInfo {
 
 export interface QuizResult {
   timestamp: string;
-  quizSetId: string; // ID of the quiz set (e.g., 'psychology-v1')
-  studentInfo?: StudentInfo; // Optional for backward compatibility
+  quizSetId: string;
+  studentInfo?: StudentInfo;
   quizScore: QuizScore;
   emotion: EmotionResult;
-  physicalLevel?: string | number | null; // Physical stress level from AI
+  physicalLevel?: string | number | null;
+  engagementLevel?: string | number | null; // for emotion-mastery quiz
   answers: QuizAnswer[];
   videoRecorded: boolean;
-  videosFolder?: string; // Folder containing all question videos
+  videosFolder?: string;
 }
 
 export interface CameraState {

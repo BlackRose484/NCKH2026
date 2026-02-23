@@ -178,6 +178,20 @@ export default function StudentDetailPage() {
 
   const emotionConfig = getEmotionConfig(result.emotion.final_emotion);
 
+  // LLM score summary
+  const llmScored = result.answers.filter(a => a.textSentiment?.score != null);
+  const llmTotal  = llmScored.reduce((s, a) => s + (a.textSentiment!.score as number), 0);
+  const llmLevel  = llmScored.length === 0 ? null
+    : llmTotal <= 8  ? 1
+    : llmTotal <= 16 ? 2
+    : llmTotal <= 24 ? 3
+    : llmTotal <= 32 ? 4
+    : 5;
+  const LLM_LEVEL_COLORS: Record<number, string> = {
+    1: 'text-green-600', 2: 'text-lime-600', 3: 'text-yellow-600',
+    4: 'text-orange-600', 5: 'text-red-600',
+  };
+
   return (
     <div className="min-h-screen bg-white p-4 py-8">
       <div className="max-w-6xl mx-auto">
@@ -207,7 +221,7 @@ export default function StudentDetailPage() {
           </div>
 
           {/* Summary Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 pt-6 border-t-2 border-slate-100">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t-2 border-slate-100">
             <div className="text-center">
               <p className="text-sm text-neutral-600 mb-1">Hoàn thành</p>
               <p className="text-3xl font-bold text-sky-600">
@@ -223,13 +237,51 @@ export default function StudentDetailPage() {
                 {result.emotion.final_emotion}
               </div>
             </div>
-            <div className="text-center">
-              <p className="text-sm text-neutral-600 mb-1">Video</p>
-              <p className="text-3xl font-bold text-green-600">
-                {result.answers.length}
-              </p>
-              <p className="text-xs text-neutral-500 mt-1">videos đã lưu</p>
-            </div>
+            {result.quizSetId === 'emotion-mastery-v1' ? (
+              <>
+                {/* Emotion mastery: physicalLevel + engagementLevel */}
+                <div className="text-center">
+                  <p className="text-sm text-neutral-600 mb-1">Mức độ cảm xúc</p>
+                  {result.physicalLevel != null ? (
+                    <p className="text-3xl font-bold text-indigo-600">Mức {result.physicalLevel}</p>
+                  ) : (
+                    <p className="text-3xl font-bold text-neutral-300">—</p>
+                  )}
+                  <p className="text-xs text-neutral-500 mt-1">từ video phân tích</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-neutral-600 mb-1">Mức độ tập trung</p>
+                  {result.engagementLevel != null ? (
+                    <p className="text-3xl font-bold text-teal-600">Mức {result.engagementLevel}</p>
+                  ) : (
+                    <p className="text-3xl font-bold text-neutral-300">—</p>
+                  )}
+                  <p className="text-xs text-neutral-500 mt-1">từ API engagement</p>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Psychology: LLM total + NSCT level */}
+                <div className="text-center">
+                  <p className="text-sm text-neutral-600 mb-1">Tổng điểm LLM</p>
+                  <p className={`text-3xl font-bold ${llmLevel ? LLM_LEVEL_COLORS[llmLevel] : 'text-neutral-400'}`}>
+                    {llmScored.length > 0 ? llmTotal : '—'}
+                  </p>
+                  <p className="text-xs text-neutral-500 mt-1">{llmScored.length} câu đã phân tích</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-neutral-600 mb-1">Mức đánh giá (NSCT)</p>
+                  {llmLevel != null ? (
+                    <p className={`text-3xl font-bold ${LLM_LEVEL_COLORS[llmLevel]}`}>Mức {llmLevel}</p>
+                  ) : (
+                    <p className="text-3xl font-bold text-neutral-300">—</p>
+                  )}
+                  <p className="text-xs text-neutral-500 mt-1">
+                    {llmLevel ? `${llmTotal} điểm` : 'Chưa có dữ liệu'}
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -433,131 +485,117 @@ export default function StudentDetailPage() {
                       )}
                     </div>
 
-                    {/* NEW: LLM Sentiment Score */}
-                    {answer.textSentiment && (() => {
-                      // Get current score (edited or original)
-                      const currentScore = editedScores.get(answer.questionId) 
-                        ?? answer.textSentiment.teacherOverride?.newScore 
-                        ?? answer.textSentiment.score;
-                      
-                      return (
+                    {/* Analysis section — engagement for emotion-mastery, LLM for psychology */}
+                    {result.quizSetId === 'emotion-mastery-v1' ? (
+                      /* Engagement score section */
+                      answer.engagementScore ? (
                         <div className="mb-4">
                           <label className="text-xs font-bold text-neutral-600 uppercase mb-2 block">
-                            📊 Phân tích cảm xúc từ văn bản (LLM):
+                            🎯 Đánh giá mức độ tập trung (Engagement):
                           </label>
-                          <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-lg">
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="flex items-center gap-2">
-                                <span className={`px-3 py-1 rounded-lg text-sm font-bold ${
-                                  currentScore === 0
-                                    ? 'bg-green-500 text-white'
-                                    : currentScore === 1
-                                    ? 'bg-yellow-500 text-white'
-                                    : 'bg-red-500 text-white'
-                                }`}>
-                                  {currentScore === 0
-                                    ? '😊 Tích cực'
-                                    : currentScore === 1
-                                    ? '😐 Trung tính'
-                                    : '😢 Tiêu cực'}
+                          <div className="p-4 bg-gradient-to-r from-teal-50 to-cyan-50 border-2 border-teal-200 rounded-lg">
+                            <div className="flex items-center gap-3">
+                              {answer.engagementScore.level != null ? (
+                                <span className="px-4 py-2 rounded-xl text-base font-black bg-teal-500 text-white shadow">
+                                  Mức {answer.engagementScore.level}
                                 </span>
-                                {(answer.textSentiment.teacherOverride || editedScores.has(answer.questionId)) && (
-                                  <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded font-medium">
-                                    ✏️ {editedScores.has(answer.questionId) ? 'Đang sửa' : 'Đã sửa bởi giáo viên'}
-                                  </span>
-                                )}
-                              </div>
-                              <span className="text-xs text-purple-600">
-                                {answer.textSentiment.provider} ({answer.textSentiment.source})
+                              ) : (
+                                <span className="text-sm text-neutral-400 italic">Không xác định được</span>
+                              )}
+                              <span className="text-xs text-teal-600">
+                                Được đo lúc {new Date(answer.engagementScore.analyzedAt).toLocaleTimeString('vi-VN')}
                               </span>
-                            </div>
-                            
-                            {answer.textSentiment.reasoning && (
-                              <p className="text-sm text-neutral-700 mb-3 italic">
-                                "{answer.textSentiment.reasoning}"
-                              </p>
-                            )}
-
-                            {/* Score Editing Buttons */}
-                            <div className="flex items-center gap-2 pt-3 border-t border-purple-200">
-                              <span className="text-xs text-neutral-600 font-medium">Sửa điểm:</span>
-                              <button
-                                onClick={() => handleScoreEdit(answer.questionId, 0)}
-                                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                                  currentScore === 0
-                                    ? 'bg-green-500 text-white'
-                                    : 'bg-slate-100 text-neutral-600 hover:bg-green-100'
-                                }`}
-                              >
-                                😊 Tích cực
-                              </button>
-                              <button
-                                onClick={() => handleScoreEdit(answer.questionId, 1)}
-                                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                                  currentScore === 1
-                                    ? 'bg-yellow-500 text-white'
-                                    : 'bg-slate-100 text-neutral-600 hover:bg-yellow-100'
-                                }`}
-                              >
-                                😐 Trung tính
-                              </button>
-                              <button
-                                onClick={() => handleScoreEdit(answer.questionId, 2)}
-                                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                                  currentScore === 2
-                                    ? 'bg-red-500 text-white'
-                                    : 'bg-slate-100 text-neutral-600 hover:bg-red-100'
-                                }`}
-                              >
-                                😢 Tiêu cực
-                              </button>
-                            </div>
-
-                            {/* Teacher Comment */}
-                            <div className="mt-3 pt-3 border-t border-purple-200">
-                              <label className="text-xs text-neutral-600 font-medium block mb-2">
-                                💬 Nhận xét của giáo viên:
-                              </label>
-                              <textarea
-                                value={teacherComments.get(answer.questionId) || answer.textSentiment.teacherOverride?.reason || ''}
-                                onChange={(e) => {
-                                  setTeacherComments(prev => {
-                                    const updated = new Map(prev);
-                                    if (e.target.value) {
-                                      updated.set(answer.questionId, e.target.value);
-                                    } else {
-                                      updated.delete(answer.questionId);
-                                    }
-                                    return updated;
-                                  });
-                                }}
-                                placeholder="Nhập nhận xét về câu trả lời này (tùy chọn)..."
-                                className="w-full px-3 py-2 text-sm border-2 border-purple-200 rounded-lg focus:outline-none focus:border-purple-400 resize-none"
-                                rows={2}
-                              />
-                              
-                              {/* Save Button for this question */}
-                              {hasUnsavedChanges(answer.questionId) && (
-                                <button
-                                  onClick={() => saveQuestionScore(answer.questionId)}
-                                  disabled={savingQuestions.has(answer.questionId)}
-                                  className="mt-2 w-full btn-primary h-9 text-sm font-bold disabled:opacity-50"
-                                >
-                                  {savingQuestions.has(answer.questionId) ? '⏳ Đang lưu...' : '💾 Lưu thay đổi câu này'}
-                                </button>
-                              )}
-                              
-                              {/* Success notification */}
-                              {saveSuccess === answer.questionId && (
-                                <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-lg text-center">
-                                  <span className="text-sm text-green-700 font-medium">✅ Đã lưu thành công!</span>
-                                </div>
-                              )}
                             </div>
                           </div>
                         </div>
-                      );
-                    })()}
+                      ) : null
+                    ) : (
+                      /* LLM Sentiment section — psychology quiz */
+                      answer.textSentiment && (() => {
+                        const currentScore = editedScores.get(answer.questionId)
+                          ?? answer.textSentiment!.teacherOverride?.newScore
+                          ?? answer.textSentiment!.score;
+                        return (
+                          <div className="mb-4">
+                            <label className="text-xs font-bold text-neutral-600 uppercase mb-2 block">
+                              📊 Phân tích cảm xúc từ văn bản (LLM):
+                            </label>
+                            <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-lg">
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2">
+                                  <span className={`px-3 py-1 rounded-lg text-sm font-bold ${
+                                    currentScore === 0 ? 'bg-green-500 text-white'
+                                    : currentScore === 1 ? 'bg-yellow-500 text-white'
+                                    : 'bg-red-500 text-white'
+                                  }`}>
+                                    {currentScore === 0 ? '😊 Tích cực' : currentScore === 1 ? '😐 Trung tính' : '😢 Tiêu cực'}
+                                  </span>
+                                  {(answer.textSentiment!.teacherOverride || editedScores.has(answer.questionId)) && (
+                                    <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded font-medium">
+                                      ✏️ {editedScores.has(answer.questionId) ? 'Đang sửa' : 'Đã sửa bởi giáo viên'}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-xs text-purple-600">
+                                  {answer.textSentiment!.provider} ({answer.textSentiment!.source})
+                                </span>
+                              </div>
+                              {answer.textSentiment!.reasoning && (
+                                <p className="text-sm text-neutral-700 mb-3 italic">"{answer.textSentiment!.reasoning}"</p>
+                              )}
+                              <div className="flex items-center gap-2 pt-3 border-t border-purple-200">
+                                <span className="text-xs text-neutral-600 font-medium">Sửa điểm:</span>
+                                {([0, 1, 2] as const).map(s => (
+                                  <button key={s} onClick={() => handleScoreEdit(answer.questionId, s)}
+                                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                                      currentScore === s
+                                        ? s === 0 ? 'bg-green-500 text-white' : s === 1 ? 'bg-yellow-500 text-white' : 'bg-red-500 text-white'
+                                        : 'bg-slate-100 text-neutral-600 hover:bg-slate-200'
+                                    }`}>
+                                    {s === 0 ? '😊 Tích cực' : s === 1 ? '😐 Trung tính' : '😢 Tiêu cực'}
+                                  </button>
+                                ))}
+                              </div>
+
+                              {/* Teacher Comment */}
+                              <div className="mt-3 pt-3 border-t border-purple-200">
+                                <label className="text-xs text-neutral-600 font-medium block mb-2">
+                                  💬 Nhận xét của giáo viên:
+                                </label>
+                                <textarea
+                                  value={teacherComments.get(answer.questionId) || answer.textSentiment!.teacherOverride?.reason || ''}
+                                  onChange={(e) => {
+                                    setTeacherComments(prev => {
+                                      const updated = new Map(prev);
+                                      if (e.target.value) { updated.set(answer.questionId, e.target.value); }
+                                      else { updated.delete(answer.questionId); }
+                                      return updated;
+                                    });
+                                  }}
+                                  placeholder="Nhập nhận xét về câu trả lời này (tùy chọn)..."
+                                  className="w-full px-3 py-2 text-sm border-2 border-purple-200 rounded-lg focus:outline-none focus:border-purple-400 resize-none"
+                                  rows={2}
+                                />
+                                {hasUnsavedChanges(answer.questionId) && (
+                                  <button
+                                    onClick={() => saveQuestionScore(answer.questionId)}
+                                    disabled={savingQuestions.has(answer.questionId)}
+                                    className="mt-2 w-full btn-primary h-9 text-sm font-bold disabled:opacity-50"
+                                  >
+                                    {savingQuestions.has(answer.questionId) ? '⏳ Đang lưu...' : '💾 Lưu thay đổi câu này'}
+                                  </button>
+                                )}
+                                {saveSuccess === answer.questionId && (
+                                  <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-lg text-center">
+                                    <span className="text-sm text-green-700 font-medium">✅ Đã lưu thành công!</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()
+                    )}
 
                     {/* Answer-Emotion Correlation */}
                     {answer.isAnswered && answerEmotionConfig && (

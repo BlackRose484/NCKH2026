@@ -9,7 +9,7 @@ import ProgressBar from '@/components/ProgressBar';
 import { useSoundPlayer } from '@/components/SoundPlayer';
 import { getQuizSetById, defaultQuizSet } from '@/lib/quizSets';
 import { getSentimentAnalyzer } from '@/lib/llm/analyzer';
-import { QuizAnswer, StudentInfo, EmotionResult, EmotionType, Question } from '@/types';
+import { QuizAnswer, StudentInfo, EmotionResult, EmotionType, Question, TextSentimentScore, EngagementScore } from '@/types';
 
 export default function QuizPage() {
   const router = useRouter();
@@ -21,6 +21,7 @@ export default function QuizPage() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<QuizAnswer[]>([]);
   const [currentAnswer, setCurrentAnswer] = useState<string>('');
+  const [selectedOption, setSelectedOption] = useState<number | null>(null); // MC selected index
   
   // Per-question video recording
   const [isRecording, setIsRecording] = useState(false);
@@ -32,10 +33,14 @@ export default function QuizPage() {
 
   // Track background emotion/sentiment analyses so finishQuiz can await them
   const backgroundAnalysesRef = useRef<Promise<void>[]>([]);
+  // Mirror of answers state always up-to-date (avoids stale closure in finishQuiz)
+  const answersRef = useRef<QuizAnswer[]>([]);
 
   const currentQuestion = quizQuestions[currentQuestionIndex];
   const isLastQuestion = currentQuestionIndex === quizQuestions.length - 1;
   const MIN_ANSWER_LENGTH = 3;
+  const isMCQuiz = quizSetId === 'emotion-mastery-v1';
+  const isMCQuestion = currentQuestion?.type === 'multiple-choice';
 
   // Load student info and quiz set from sessionStorage
   useEffect(() => {
@@ -156,19 +161,25 @@ export default function QuizPage() {
 
   // Handle answer submission
   const handleAnswerSubmit = async () => {
-    if (processingEmotion || currentAnswer.trim().length < MIN_ANSWER_LENGTH) return;
+    // For MC: need a selected option. For text: need min length.
+    if (processingEmotion) return;
+    if (isMCQuestion && selectedOption === null) return;
+    if (!isMCQuestion && currentAnswer.trim().length < MIN_ANSWER_LENGTH) return;
     
     setProcessingEmotion(true);
     setIsRecording(false);
 
     const questionId = currentQuestion.id;
-    const answerText = currentAnswer.trim();
-    const capturedVideoPath = `videos/${resultId}/q${questionId}.webm`; // optimistic path
+    const answerText = isMCQuestion
+      ? currentQuestion.options![selectedOption!]
+      : currentAnswer.trim();
+    const capturedVideoPath = `videos/${resultId}/q${questionId}.webm`;
 
-    // 1. Save answer IMMEDIATELY with defaults → user can proceed right away
+    // 1. Save answer IMMEDIATELY with defaults
     const answer: QuizAnswer = {
       questionId,
       answerText,
+      selectedOption: isMCQuestion ? selectedOption! : undefined,
       isAnswered: true,
       timestamp: new Date().toISOString(),
       emotion: { final_emotion: 'Neutral', confidence: 0 },
@@ -176,18 +187,12 @@ export default function QuizPage() {
       textSentiment: undefined,
     };
 
-    setAnswers(prev => [...prev, answer]);
+    // Update ref DIRECTLY (synchronous) so finishQuiz always reads fresh data
+    answersRef.current = [...answersRef.current, answer];
+    setAnswers(answersRef.current); // UI update
 
-    // 2. Move to next question IMMEDIATELY
-    if (isLastQuestion) {
-      finishQuiz();
-    } else {
-      setCurrentQuestionIndex(prev => prev + 1);
-      setCurrentAnswer('');
-      setProcessingEmotion(false);
-    }
-
-    // 3. Run AI analyses in background (fire-and-forget, update answers when done)
+    // 3. Run AI analyses in background FIRST, push to ref BEFORE navigating
+    //    (critical: push before finishQuiz so last question is also awaited)
     const bgAnalysis = (async () => {
       // Wait for actual video path to be set (up to 3s)
       const finalVideoPath = await new Promise<string>((resolve) => {
@@ -221,32 +226,69 @@ export default function QuizPage() {
         }
       })();
 
-      // Text sentiment analysis
-      const analyzer = getSentimentAnalyzer();
-      const sentimentPromise = analyzer.analyze({
-        questionId,
-        questionText: currentQuestion.question,
-        answerText,
-        category: currentQuestion.category,
-      }).catch(() => ({
-        score: 1 as 0 | 1 | 2,
-        provider: 'Error',
-        source: 'fallback' as const,
-        analyzedAt: new Date().toISOString(),
-      }));
+      // Text sentiment analysis (skip for MC engagement quiz)
+      let sentimentPromise: Promise<TextSentimentScore | undefined>;
+      if (isMCQuiz) {
+        sentimentPromise = Promise.resolve(undefined);
+      } else {
+        const analyzer = getSentimentAnalyzer();
+        sentimentPromise = analyzer.analyze({
+          questionId,
+          questionText: currentQuestion.question,
+          answerText,
+          category: currentQuestion.category,
+        }).catch(() => ({
+          score: 1 as 0 | 1 | 2,
+          provider: 'Error',
+          source: 'fallback' as const,
+          analyzedAt: new Date().toISOString(),
+        }));
+      }
 
-      // Wait for both (no timeout needed since we're already in background)
-      const [emotionResult, textSentiment] = await Promise.all([emotionPromise, sentimentPromise]);
+      // Engagement analysis (for MC quiz — uses /predict_engagement_video)
+      let engagementPromise: Promise<EngagementScore | undefined>;
+      if (isMCQuiz) {
+        engagementPromise = (async () => {
+          try {
+            const videoResponse = await fetch(`/api/get-video?path=${encodeURIComponent(finalVideoPath)}`);
+            if (!videoResponse.ok) throw new Error('Failed to fetch video');
+            const videoBlob = await videoResponse.blob();
+            const fd = new FormData();
+            fd.append('video', videoBlob, `q${questionId}.webm`);
+            const res = await fetch('/api/analyze-engagement', { method: 'POST', body: fd });
+            if (!res.ok) throw new Error(`Engagement API ${res.status}`);
+            const raw = await res.json();
+            return { level: raw.status ?? raw.engagement_level ?? null, raw, analyzedAt: new Date().toISOString() };
+          } catch (err) {
+            console.warn(`[Engagement Q${questionId}] ⚠️ FALLBACK:`, err);
+            return { level: null, analyzedAt: new Date().toISOString() };
+          }
+        })();
+      } else {
+        engagementPromise = Promise.resolve(undefined);
+      }
 
-      // Update the answer with real results
-      setAnswers(prev => prev.map(a =>
+      const [emotionResult, textSentiment, engagementScore] = await Promise.all([emotionPromise, sentimentPromise, engagementPromise]);
+
+      // Update ref DIRECTLY (synchronous) — avoids React batching delay
+      answersRef.current = answersRef.current.map(a =>
         a.questionId === questionId
-          ? { ...a, emotion: emotionResult, textSentiment, videoFilename: finalVideoPath }
+          ? { ...a, emotion: emotionResult, textSentiment: textSentiment ?? undefined, engagementScore: engagementScore ?? undefined, videoFilename: finalVideoPath }
           : a
-      ));
+      );
+      setAnswers([...answersRef.current]); // UI update (copy to trigger re-render)
       console.log(`[Quiz] Q${questionId} background analysis done. Emotion: ${emotionResult.final_emotion}`);
     })();
     backgroundAnalysesRef.current.push(bgAnalysis);
+
+    // 2. Navigate AFTER pushing to ref (so finishQuiz awaits this question too)
+    if (isLastQuestion) {
+      finishQuiz();
+    } else {
+      setCurrentQuestionIndex(prev => prev + 1);
+      setCurrentAnswer('');
+      setProcessingEmotion(false);
+    }
   };
 
   // Finish quiz and save everything
@@ -255,7 +297,7 @@ export default function QuizPage() {
     playFinish();
     setProcessingEmotion(true);
 
-    // Wait for all background emotion/sentiment analyses to complete before reading answers
+    // Wait for ALL background analyses (including the last question's)
     if (backgroundAnalysesRef.current.length > 0) {
       console.log(`[Quiz] Waiting for ${backgroundAnalysesRef.current.length} background analyses...`);
       await Promise.allSettled(backgroundAnalysesRef.current);
@@ -263,11 +305,12 @@ export default function QuizPage() {
       console.log('[Quiz] All background analyses done.');
     }
 
-    // Read latest answers from state via a ref pattern — use functional update trick
-    // Actually read from ref snapshot since state may lag; rely on answers closure
+    // Read fresh answers from ref (not stale closure)
+    const freshAnswers = answersRef.current;
+    console.log(`[Quiz] finishQuiz: ${freshAnswers.length} answers, sentiment coverage: ${freshAnswers.filter(a => a.textSentiment).length}/${freshAnswers.length}`);
 
     // Calculate overall emotion (most common)
-    const emotionCounts = answers.reduce((acc, a) => {
+    const emotionCounts = freshAnswers.reduce((acc, a) => {
       if (a.emotion) {
         acc[a.emotion.final_emotion] = (acc[a.emotion.final_emotion] || 0) + 1;
       }
@@ -278,35 +321,58 @@ export default function QuizPage() {
       ([, a], [, b]) => b - a
     )[0]?.[0] as EmotionType || 'Neutral';
 
-    // Call get_level_physical with all per-question emotions
+    // Call appropriate level APIs:
+    // - Psychology: physicalLevel only (from emotion video analysis)
+    // - Emotion mastery: BOTH physicalLevel + engagementLevel (from both video APIs)
     let physicalLevel: string | null = null;
-    const emotionList = answers
+    let engagementLevel: string | null = null;
+
+    // Physical level (from emotion analysis) — always called for all quiz types
+    const emotionList = freshAnswers
       .filter(a => a.emotion?.final_emotion)
       .map(a => a.emotion!.final_emotion);
+    console.log(`[PhysicalLevel] Sending ${emotionList.length} emotions:`, emotionList);
 
-    console.log(`[PhysicalLevel] Sending ${emotionList.length} emotions to AI:`, emotionList);
-
-    if (emotionList.length > 0) {
-      try {
-        const levelRes = await fetch('/api/get-physical-level', {
+    const physicalLevelPromise = emotionList.length > 0
+      ? fetch('/api/get-physical-level', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ emotions: emotionList }),
-        });
-        if (levelRes.ok) {
-          const levelData = await levelRes.json();
-          physicalLevel = levelData.level ?? levelData.physical_level ?? JSON.stringify(levelData);
-          console.log(`[PhysicalLevel] ✅ AI result:`, levelData, '→ level:', physicalLevel);
-        } else {
-          console.warn(`[PhysicalLevel] ⚠️ FALLBACK - API returned ${levelRes.status}`);
-        }
-      } catch (err) {
-        console.warn('[PhysicalLevel] ⚠️ FALLBACK (API failed):', err);
-      }
-    }
+        }).then(async r => {
+          if (!r.ok) { console.warn(`[PhysicalLevel] ⚠️ ${r.status}`); return null; }
+          const d = await r.json();
+          console.log(`[PhysicalLevel] ✅`, d);
+          return String(d.status ?? d.physical_level ?? JSON.stringify(d));
+        }).catch(err => { console.warn('[PhysicalLevel] ⚠️ failed:', err); return null; })
+      : Promise.resolve(null);
+
+    // Engagement level (from engagement analysis) — only for emotion-mastery
+    const engagementLevelPromise = isMCQuiz
+      ? (() => {
+          const engScores = freshAnswers
+            .filter(a => a.engagementScore?.level != null)
+            .map(a => a.engagementScore!.level as number);
+          console.log(`[EngagementLevel] Sending ${engScores.length} scores:`, engScores);
+          if (engScores.length === 0) return Promise.resolve(null);
+          return fetch('/api/get-engagement-level', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ engagement_scores: engScores }),
+          }).then(async r => {
+            if (!r.ok) { console.warn(`[EngagementLevel] ⚠️ ${r.status}`); return null; }
+            const d = await r.json();
+            console.log(`[EngagementLevel] ✅`, d);
+            return String(d.status ?? d.engagement_level ?? JSON.stringify(d));
+          }).catch(err => { console.warn('[EngagementLevel] ⚠️ failed:', err); return null; });
+        })()
+      : Promise.resolve(null);
+
+    // Run both in parallel
+    [physicalLevel, engagementLevel] = await Promise.all([physicalLevelPromise, engagementLevelPromise]);
+
 
     // Calculate completion stats
-    const completed = answers.filter(a => a.isAnswered).length;
+    const completed = freshAnswers.filter(a => a.isAnswered).length;
     const total = quizQuestions.length;
     const quizScore = {
       total,
@@ -323,8 +389,9 @@ export default function QuizPage() {
       studentInfo: studentInfo || undefined,
       quizScore,
       emotion: { final_emotion: overallEmotion },
-      physicalLevel,  // Overall physical level from AI
-      answers,
+      physicalLevel,
+      engagementLevel,
+      answers: freshAnswers,
       videoRecorded: true,
       videosFolder: resultId,
     };
@@ -356,7 +423,10 @@ export default function QuizPage() {
     }, 3000);
   };
 
-  const canSubmit = currentAnswer.trim().length >= MIN_ANSWER_LENGTH && !processingEmotion;
+  // canSubmit: MC needs selected option, text needs min length
+  const canSubmit = !processingEmotion && (
+    isMCQuestion ? selectedOption !== null : currentAnswer.trim().length >= MIN_ANSWER_LENGTH
+  );
 
   // Background images from back_asset - rotate per question
   const bgImages = [
@@ -479,29 +549,64 @@ export default function QuizPage() {
                 </p>
               </div>
 
-              {/* Answer textarea */}
-              <textarea
-                value={currentAnswer}
-                onChange={e => setCurrentAnswer(e.target.value)}
-                placeholder={currentQuestion.placeholder || 'Hãy viết câu trả lời của bạn vào đây... 📝'}
-                disabled={processingEmotion}
-                rows={4}
-                className="w-full rounded-2xl border-3 border-orange-200 bg-orange-50 p-4 text-neutral-700 text-lg font-medium placeholder-orange-300 focus:outline-none focus:border-orange-400 focus:bg-white resize-none transition-all duration-200 shadow-inner"
-                style={{ borderWidth: '3px' }}
-              />
-
-              {/* Character count */}
-              <div className="flex justify-between items-center mt-2">
-                <span className="text-sm text-neutral-400">
-                  {currentAnswer.length > 0
-                    ? currentAnswer.length >= MIN_ANSWER_LENGTH
-                      ? '✅ Câu trả lời hợp lệ!'
-                      : `Cần thêm ${MIN_ANSWER_LENGTH - currentAnswer.length} ký tự nữa`
-                    : 'Hãy viết câu trả lời của bạn'}
-                </span>
-                <span className="text-sm text-neutral-400">{currentAnswer.length} ký tự</span>
-              </div>
-            </div>
+              {/* Answer input: MC buttons (engagement quiz) or textarea (psychology quiz) */}
+              {isMCQuestion ? (
+                <div className="flex flex-col gap-3 mt-2">
+                  {currentQuestion.options!.map((opt, idx) => {
+                    const isSelected = selectedOption === idx;
+                    const baseColors = [
+                      'from-sky-50 to-blue-100 border-blue-300 hover:border-blue-500 text-blue-900',
+                      'from-violet-50 to-purple-100 border-purple-300 hover:border-purple-500 text-purple-900',
+                      'from-rose-50 to-pink-100 border-pink-300 hover:border-pink-500 text-pink-900',
+                      'from-amber-50 to-orange-100 border-orange-300 hover:border-orange-500 text-orange-900',
+                    ];
+                    const selColors = [
+                      'from-sky-400 to-blue-600 border-blue-700 text-white shadow-xl scale-[1.02]',
+                      'from-violet-400 to-purple-600 border-purple-700 text-white shadow-xl scale-[1.02]',
+                      'from-rose-400 to-pink-600 border-pink-700 text-white shadow-xl scale-[1.02]',
+                      'from-amber-400 to-orange-600 border-orange-700 text-white shadow-xl scale-[1.02]',
+                    ];
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => !processingEmotion && setSelectedOption(idx)}
+                        disabled={processingEmotion}
+                        className={`w-full text-left px-4 py-3 rounded-2xl border-2 bg-gradient-to-r font-semibold text-base transition-all duration-200 flex items-center gap-3 select-none
+                          ${isSelected ? selColors[idx] : baseColors[idx]}`}
+                      >
+                        <span className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-sm font-black flex-shrink-0
+                          ${isSelected ? 'bg-white/30 border-white/60 text-white' : 'border-current opacity-60'}`}>
+                          {isSelected ? '✓' : String.fromCharCode(65 + idx)}
+                        </span>
+                        {opt}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <>
+                  <textarea
+                    value={currentAnswer}
+                    onChange={e => setCurrentAnswer(e.target.value)}
+                    placeholder={currentQuestion.placeholder || 'Hãy viết câu trả lời của bạn vào đây... 📝'}
+                    disabled={processingEmotion}
+                    rows={4}
+                    className="w-full rounded-2xl border-orange-200 bg-orange-50 p-4 text-neutral-700 text-lg font-medium placeholder-orange-300 focus:outline-none focus:border-orange-400 focus:bg-white resize-none transition-all duration-200 shadow-inner"
+                    style={{ borderWidth: '3px', borderStyle: 'solid' }}
+                  />
+                  <div className="flex justify-between items-center mt-2">
+                    <span className="text-sm text-neutral-400">
+                      {currentAnswer.length > 0
+                        ? currentAnswer.length >= MIN_ANSWER_LENGTH
+                          ? '✅ Câu trả lời hợp lệ!'
+                          : `Cần thêm ${MIN_ANSWER_LENGTH - currentAnswer.length} ký tự nữa`
+                        : 'Hãy viết câu trả lời của bạn'}
+                    </span>
+                    <span className="text-sm text-neutral-400">{currentAnswer.length} ký tự</span>
+                  </div>
+                </>
+              )}
+            </div>{/* end question card */}
 
             {/* Action buttons */}
             <div className="w-full max-w-2xl flex flex-col gap-3">
