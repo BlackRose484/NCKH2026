@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import CameraRecorder from '@/components/CameraRecorder';
@@ -29,6 +29,9 @@ export default function QuizPage() {
   
   const [showFinish, setShowFinish] = useState(false);
   const [resultId, setResultId] = useState<string>('');
+
+  // Track background emotion/sentiment analyses so finishQuiz can await them
+  const backgroundAnalysesRef = useRef<Promise<void>[]>([]);
 
   const currentQuestion = quizQuestions[currentQuestionIndex];
   const isLastQuestion = currentQuestionIndex === quizQuestions.length - 1;
@@ -155,94 +158,95 @@ export default function QuizPage() {
   const handleAnswerSubmit = async () => {
     if (processingEmotion || currentAnswer.trim().length < MIN_ANSWER_LENGTH) return;
     
-    console.log(`[Quiz] Answer submitted for question ${currentQuestion.id}`);
     setProcessingEmotion(true);
-
-    // Stop recording and wait for video to be saved
-    console.log(`[Quiz] Stopping recording for question ${currentQuestion.id}`);
     setIsRecording(false);
-    
-    // Create a promise that resolves when video is saved
-    const waitForVideo = new Promise<string>((resolve) => {
-      const checkInterval = setInterval(() => {
-        const videoPath = questionVideos.get(currentQuestion.id);
-        if (videoPath) {
-          console.log(`[Quiz] Video saved for question ${currentQuestion.id}: ${videoPath}`);
-          clearInterval(checkInterval);
-          resolve(videoPath);
-        }
-      }, 50); // Check every 50ms for faster response
-      
-      // Timeout after 2 seconds (reduced from 3s)
-      setTimeout(() => {
-        clearInterval(checkInterval);
-        const fallbackPath = `videos/${resultId}/q${currentQuestion.id}.webm`;
-        console.warn(`[Quiz] Video save timeout for question ${currentQuestion.id}, using fallback: ${fallbackPath}`);
-        resolve(fallbackPath);
-      }, 2000);
-    });
-    
-    const finalVideoPath = await waitForVideo;
-    
-    // Analyze emotion from video (CRITICAL for correlation analysis)
-    let emotion: EmotionResult = { final_emotion: 'Neutral', confidence: 0 };
 
-    // NEW: Analyze text sentiment with LLM (background, don't block)
-    const analyzer = getSentimentAnalyzer();
-    const textSentimentPromise = analyzer.analyze({
-      questionId: currentQuestion.id,
-      questionText: currentQuestion.question,
-      answerText: currentAnswer.trim(),
-      category: currentQuestion.category,
-    }).catch(error => {
-      console.error(`[Quiz] Text sentiment analysis failed for Q${currentQuestion.id}:`, error);
-      // Return fallback
-      return {
-        score: 1 as 0 | 1 | 2,
-        provider: 'Error',
-        source: 'fallback' as const,
-        analyzedAt: new Date().toISOString(),
-        error: error.message,
-      };
-    });
+    const questionId = currentQuestion.id;
+    const answerText = currentAnswer.trim();
+    const capturedVideoPath = `videos/${resultId}/q${questionId}.webm`; // optimistic path
 
-    // Wait for sentiment analysis (with timeout)
-    const textSentiment = await Promise.race([
-      textSentimentPromise,
-      new Promise<any>(resolve => setTimeout(() => {
-        console.warn(`[Quiz] Text sentiment timeout for Q${currentQuestion.id}`);
-        resolve({
-          score: 1,
-          provider: 'Timeout',
-          source: 'fallback',
-          analyzedAt: new Date().toISOString(),
-        });
-      }, 5000)), // 5 second timeout
-    ]);
-
-    console.log(`[Quiz] Text sentiment for Q${currentQuestion.id}:`, textSentiment.score, `(${textSentiment.provider})`);
-
-    // Create answer with text and emotion
+    // 1. Save answer IMMEDIATELY with defaults → user can proceed right away
     const answer: QuizAnswer = {
-      questionId: currentQuestion.id,
-      answerText: currentAnswer.trim(),
+      questionId,
+      answerText,
       isAnswered: true,
       timestamp: new Date().toISOString(),
-      emotion,
-      videoFilename: finalVideoPath,
-      textSentiment,  // NEW: Include LLM analysis
+      emotion: { final_emotion: 'Neutral', confidence: 0 },
+      videoFilename: capturedVideoPath,
+      textSentiment: undefined,
     };
 
     setAnswers(prev => [...prev, answer]);
-    console.log(`[Quiz] Answer saved for question ${currentQuestion.id}`);
 
-    // Move to next question or finish immediately
+    // 2. Move to next question IMMEDIATELY
     if (isLastQuestion) {
       finishQuiz();
     } else {
       setCurrentQuestionIndex(prev => prev + 1);
+      setCurrentAnswer('');
       setProcessingEmotion(false);
     }
+
+    // 3. Run AI analyses in background (fire-and-forget, update answers when done)
+    const bgAnalysis = (async () => {
+      // Wait for actual video path to be set (up to 3s)
+      const finalVideoPath = await new Promise<string>((resolve) => {
+        const t = setTimeout(() => resolve(capturedVideoPath), 3000);
+        const interval = setInterval(() => {
+          const p = questionVideos.get(questionId);
+          if (p) { clearInterval(interval); clearTimeout(t); resolve(p); }
+        }, 50);
+      });
+
+      // Emotion analysis
+      const emotionPromise = (async (): Promise<EmotionResult> => {
+        try {
+          console.log(`[Emotion Q${questionId}] Sending video to AI: ${finalVideoPath}`);
+          const videoResponse = await fetch(`/api/get-video?path=${encodeURIComponent(finalVideoPath)}`);
+          if (!videoResponse.ok) throw new Error('Failed to fetch saved video');
+          const videoBlob = await videoResponse.blob();
+          const formData = new FormData();
+          formData.append('video', videoBlob, `q${questionId}.webm`);
+          const response = await fetch('/api/analyze-emotion', { method: 'POST', body: formData });
+          if (!response.ok) throw new Error(`Emotion API error: ${response.status}`);
+          const data = await response.json();
+          console.log(`[Emotion Q${questionId}] ✅ AI result:`, data);
+          return {
+            final_emotion: (data.final_emotion || data.emotion || 'Neutral') as EmotionType,
+            confidence: data.confidence ?? 0,
+          };
+        } catch (err) {
+          console.warn(`[Emotion Q${questionId}] ⚠️ FALLBACK:`, err);
+          return { final_emotion: 'Neutral', confidence: 0 };
+        }
+      })();
+
+      // Text sentiment analysis
+      const analyzer = getSentimentAnalyzer();
+      const sentimentPromise = analyzer.analyze({
+        questionId,
+        questionText: currentQuestion.question,
+        answerText,
+        category: currentQuestion.category,
+      }).catch(() => ({
+        score: 1 as 0 | 1 | 2,
+        provider: 'Error',
+        source: 'fallback' as const,
+        analyzedAt: new Date().toISOString(),
+      }));
+
+      // Wait for both (no timeout needed since we're already in background)
+      const [emotionResult, textSentiment] = await Promise.all([emotionPromise, sentimentPromise]);
+
+      // Update the answer with real results
+      setAnswers(prev => prev.map(a =>
+        a.questionId === questionId
+          ? { ...a, emotion: emotionResult, textSentiment, videoFilename: finalVideoPath }
+          : a
+      ));
+      console.log(`[Quiz] Q${questionId} background analysis done. Emotion: ${emotionResult.final_emotion}`);
+    })();
+    backgroundAnalysesRef.current.push(bgAnalysis);
   };
 
   // Finish quiz and save everything
@@ -251,7 +255,16 @@ export default function QuizPage() {
     playFinish();
     setProcessingEmotion(true);
 
-    console.log(`[Quiz] Finishing quiz, videos saved for ${questionVideos.size} questions`);
+    // Wait for all background emotion/sentiment analyses to complete before reading answers
+    if (backgroundAnalysesRef.current.length > 0) {
+      console.log(`[Quiz] Waiting for ${backgroundAnalysesRef.current.length} background analyses...`);
+      await Promise.allSettled(backgroundAnalysesRef.current);
+      backgroundAnalysesRef.current = [];
+      console.log('[Quiz] All background analyses done.');
+    }
+
+    // Read latest answers from state via a ref pattern — use functional update trick
+    // Actually read from ref snapshot since state may lag; rely on answers closure
 
     // Calculate overall emotion (most common)
     const emotionCounts = answers.reduce((acc, a) => {
@@ -264,6 +277,33 @@ export default function QuizPage() {
     const overallEmotion = Object.entries(emotionCounts).sort(
       ([, a], [, b]) => b - a
     )[0]?.[0] as EmotionType || 'Neutral';
+
+    // Call get_level_physical with all per-question emotions
+    let physicalLevel: string | null = null;
+    const emotionList = answers
+      .filter(a => a.emotion?.final_emotion)
+      .map(a => a.emotion!.final_emotion);
+
+    console.log(`[PhysicalLevel] Sending ${emotionList.length} emotions to AI:`, emotionList);
+
+    if (emotionList.length > 0) {
+      try {
+        const levelRes = await fetch('/api/get-physical-level', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ emotions: emotionList }),
+        });
+        if (levelRes.ok) {
+          const levelData = await levelRes.json();
+          physicalLevel = levelData.level ?? levelData.physical_level ?? JSON.stringify(levelData);
+          console.log(`[PhysicalLevel] ✅ AI result:`, levelData, '→ level:', physicalLevel);
+        } else {
+          console.warn(`[PhysicalLevel] ⚠️ FALLBACK - API returned ${levelRes.status}`);
+        }
+      } catch (err) {
+        console.warn('[PhysicalLevel] ⚠️ FALLBACK (API failed):', err);
+      }
+    }
 
     // Calculate completion stats
     const completed = answers.filter(a => a.isAnswered).length;
@@ -283,6 +323,7 @@ export default function QuizPage() {
       studentInfo: studentInfo || undefined,
       quizScore,
       emotion: { final_emotion: overallEmotion },
+      physicalLevel,  // Overall physical level from AI
       answers,
       videoRecorded: true,
       videosFolder: resultId,

@@ -66,6 +66,7 @@ export interface QuizResult {
   studentInfo?: StudentInfo; // Optional for backward compatibility
   quizScore: QuizScore;
   emotion: EmotionResult;
+  physicalLevel?: string | number | null; // Physical stress level from AI
   answers: QuizAnswer[];
   videoRecorded: boolean;
   videosFolder?: string; // Folder containing all question videos

@@ -280,6 +280,7 @@ export default function TeacherDashboardPage() {
                     <th className="text-left p-3 text-sm font-bold text-neutral-700">Bộ câu hỏi</th>
                     <th className="text-center p-3 text-sm font-bold text-neutral-700">Hoàn thành</th>
                     <th className="text-center p-3 text-sm font-bold text-neutral-700">Cảm xúc</th>
+                    <th className="text-center p-3 text-sm font-bold text-neutral-700">Mức độ</th>
                     <th className="text-left p-3 text-sm font-bold text-neutral-700">Thời gian</th>
                     <th className="text-center p-3 text-sm font-bold text-neutral-700">Chi tiết</th>
                   </tr>
@@ -319,6 +320,15 @@ export default function TeacherDashboardPage() {
                           <span className={`px-3 py-1 rounded-lg text-xs font-bold ${emotionConfig.color} ${emotionConfig.bgColor}`}>
                             {result.emotion.final_emotion}
                           </span>
+                        </td>
+                        <td className="p-3 text-center">
+                          {result.physicalLevel != null ? (
+                            <span className="px-3 py-1 rounded-lg text-xs font-bold bg-indigo-100 text-indigo-700">
+                              Mức {result.physicalLevel}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-neutral-400">—</span>
+                          )}
                         </td>
                         <td className="p-3 text-xs text-neutral-500">
                           {new Date(result.timestamp).toLocaleString('vi-VN', {
