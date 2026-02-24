@@ -28,6 +28,23 @@ function getLLMLevel(answers: QuizAnswer[]): number | null {
   return 5;
 }
 
+// Parse level value — handles old buggy format '{"level":2}' and correct format '2' or 2
+function parseLevel(val: string | number | null | undefined): string | null {
+  if (val == null) return null;
+  const s = String(val).trim();
+  if (!s || s === 'null') return null;
+  try {
+    const parsed = JSON.parse(s);
+    if (typeof parsed === 'object' && parsed !== null) {
+      const n = parsed.level ?? parsed.status ?? parsed.value;
+      return n != null ? String(n) : null;
+    }
+    return String(parsed);
+  } catch {
+    return s;
+  }
+}
+
 const LEVEL_COLORS: Record<number, string> = {
   1: 'bg-green-100 text-green-700',
   2: 'bg-lime-100 text-lime-700',
@@ -254,13 +271,9 @@ export default function TeacherDashboardPage() {
                         {isPsych && (
                           <>
                             <td className="p-3 text-center">
-                              {result.physicalLevel != null ? (
-                                <span className="px-3 py-1 rounded-lg text-xs font-bold bg-indigo-100 text-indigo-700">
-                                  Mức {result.physicalLevel}
-                                </span>
-                              ) : (
-                                <span className="text-xs text-neutral-400">—</span>
-                              )}
+                              {(() => { const v = parseLevel(result.physicalLevel); return v ? (
+                                <span className="px-3 py-1 rounded-lg text-xs font-bold bg-indigo-100 text-indigo-700">Mức {v}</span>
+                              ) : <span className="text-xs text-neutral-400">—</span>; })()}
                             </td>
                             <td className="p-3 text-center">
                               {llmLevel != null ? (
@@ -279,22 +292,14 @@ export default function TeacherDashboardPage() {
                         {isEmotion && (
                           <>
                             <td className="p-3 text-center">
-                              {result.physicalLevel != null ? (
-                                <span className="px-3 py-1 rounded-lg text-xs font-bold bg-indigo-100 text-indigo-700">
-                                  Mức {result.physicalLevel}
-                                </span>
-                              ) : (
-                                <span className="text-xs text-neutral-400">—</span>
-                              )}
+                              {(() => { const v = parseLevel(result.physicalLevel); return v ? (
+                                <span className="px-3 py-1 rounded-lg text-xs font-bold bg-indigo-100 text-indigo-700">Mức {v}</span>
+                              ) : <span className="text-xs text-neutral-400">—</span>; })()}
                             </td>
                             <td className="p-3 text-center">
-                              {result.engagementLevel != null ? (
-                                <span className="px-3 py-1 rounded-lg text-xs font-bold bg-teal-100 text-teal-700">
-                                  Mức {result.engagementLevel}
-                                </span>
-                              ) : (
-                                <span className="text-xs text-neutral-400">—</span>
-                              )}
+                              {(() => { const v = parseLevel(result.engagementLevel); return v ? (
+                                <span className="px-3 py-1 rounded-lg text-xs font-bold bg-teal-100 text-teal-700">Mức {v}</span>
+                              ) : <span className="text-xs text-neutral-400">—</span>; })()}
                             </td>
                           </>
                         )}

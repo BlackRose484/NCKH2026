@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Image from 'next/image';
 import { QuizResult } from '@/types';
-import { quizQuestions } from '@/lib/questions';
+import { getQuizSetById } from '@/lib/quizSets';
 import { getEmotionConfig } from '@/lib/emotions';
 import { calculateStudentAnalytics } from '@/lib/studentAnalytics';
 import EmotionTimelineChart from '@/components/charts/EmotionTimelineChart';
@@ -406,7 +406,8 @@ export default function StudentDetailPage() {
           </h2>
 
           {result.answers.map((answer, idx) => {
-            const question = quizQuestions.find(q => q.id === answer.questionId);
+            const quizSet = getQuizSetById(result.quizSetId);
+            const question = quizSet?.questions.find(q => q.id === answer.questionId);
             const answerEmotion = answer.emotion?.final_emotion || 'N/A';
             const answerEmotionConfig = answer.emotion ? getEmotionConfig(answer.emotion.final_emotion) : null;
 
@@ -438,12 +439,7 @@ export default function StudentDetailPage() {
                       </video>
                     </div>
                     
-                    {/* Emotion confidence */}
-                    {answer.emotion?.confidence && answer.emotion.confidence > 0 && (
-                      <div className="mt-2 text-xs text-neutral-500">
-                        Độ tin cậy: {Math.round(answer.emotion.confidence * 100)}%
-                      </div>
-                    )}
+
                   </div>
 
                   {/* Right: Question & Answer */}

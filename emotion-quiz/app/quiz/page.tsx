@@ -342,7 +342,7 @@ export default function QuizPage() {
           if (!r.ok) { console.warn(`[PhysicalLevel] ⚠️ ${r.status}`); return null; }
           const d = await r.json();
           console.log(`[PhysicalLevel] ✅`, d);
-          return String(d.status ?? d.physical_level ?? JSON.stringify(d));
+          return String(d.level ?? d.physical_level ?? JSON.stringify(d));
         }).catch(err => { console.warn('[PhysicalLevel] ⚠️ failed:', err); return null; })
       : Promise.resolve(null);
 
@@ -362,7 +362,7 @@ export default function QuizPage() {
             if (!r.ok) { console.warn(`[EngagementLevel] ⚠️ ${r.status}`); return null; }
             const d = await r.json();
             console.log(`[EngagementLevel] ✅`, d);
-            return String(d.status ?? d.engagement_level ?? JSON.stringify(d));
+            return String(d.level ?? d.status ?? d.engagement_level ?? JSON.stringify(d));
           }).catch(err => { console.warn('[EngagementLevel] ⚠️ failed:', err); return null; });
         })()
       : Promise.resolve(null);
