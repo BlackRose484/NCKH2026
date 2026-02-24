@@ -196,9 +196,14 @@ export default function StudentDetailPage() {
     }
   };
 
-  // LLM score summary
+  // LLM score summary — uses editedScores (live edits) → teacherOverride → original
   const llmScored = result.answers.filter(a => a.textSentiment?.score != null);
-  const llmTotal  = llmScored.reduce((s, a) => s + (a.textSentiment!.score as number), 0);
+  const llmTotal  = llmScored.reduce((s, a) => {
+    const effective = editedScores.get(a.questionId)
+      ?? a.textSentiment!.teacherOverride?.newScore
+      ?? a.textSentiment!.score as number;
+    return s + (effective as number);
+  }, 0);
   const llmLevel  = llmScored.length === 0 ? null
     : llmTotal <= 8  ? 1
     : llmTotal <= 16 ? 2
