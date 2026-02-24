@@ -127,7 +127,7 @@ export default function TeacherDashboardPage() {
         <div className="card mb-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Image src="/teacher.svg" alt="Teacher" width={48} height={48} />
+              <Image src="/leaderboard.svg" alt="Teacher" width={48} height={48} />
               <div>
                 <h1 className="text-2xl font-bold text-neutral-700">📊 Teacher Dashboard</h1>
                 <p className="text-sm text-neutral-600">Phân tích tâm lý học sinh</p>
@@ -279,7 +279,6 @@ export default function TeacherDashboardPage() {
                               {llmLevel != null ? (
                                 <span className={`px-3 py-1 rounded-lg text-xs font-bold ${LEVEL_COLORS[llmLevel]}`}>
                                   Mức {llmLevel}
-                                  <span className="ml-1 opacity-60 font-normal">({llmTotal}đ)</span>
                                 </span>
                               ) : (
                                 <span className="text-xs text-neutral-400">—</span>

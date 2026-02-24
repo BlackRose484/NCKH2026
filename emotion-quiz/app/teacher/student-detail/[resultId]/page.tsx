@@ -9,6 +9,7 @@ import { getEmotionConfig } from '@/lib/emotions';
 import { calculateStudentAnalytics } from '@/lib/studentAnalytics';
 import EmotionTimelineChart from '@/components/charts/EmotionTimelineChart';
 import AnswerLengthChart from '@/components/charts/AnswerLengthChart';
+import EngagementBarChart from '@/components/EngagementBarChart';
 
 export default function StudentDetailPage() {
   const router = useRouter();
@@ -178,6 +179,23 @@ export default function StudentDetailPage() {
 
   const emotionConfig = getEmotionConfig(result.emotion.final_emotion);
 
+  // Parse level value — handles old buggy format '{"level":2}' and correct format '2'
+  const parseLevel = (val: string | number | null | undefined): string | null => {
+    if (val == null) return null;
+    const s = String(val).trim();
+    if (!s || s === 'null') return null;
+    try {
+      const parsed = JSON.parse(s);
+      if (typeof parsed === 'object' && parsed !== null) {
+        const n = parsed.level ?? parsed.status ?? parsed.value;
+        return n != null ? String(n) : null;
+      }
+      return String(parsed);
+    } catch {
+      return s;
+    }
+  };
+
   // LLM score summary
   const llmScored = result.answers.filter(a => a.textSentiment?.score != null);
   const llmTotal  = llmScored.reduce((s, a) => s + (a.textSentiment!.score as number), 0);
@@ -191,6 +209,17 @@ export default function StudentDetailPage() {
     1: 'text-green-600', 2: 'text-lime-600', 3: 'text-yellow-600',
     4: 'text-orange-600', 5: 'text-red-600',
   };
+
+  // MC score for emotion-mastery quiz
+  const isEmotionMastery = result.quizSetId === 'emotion-mastery-v1';
+  const emQuizSet = getQuizSetById(result.quizSetId);
+  const mcAnswered = result.answers.filter(a => a.selectedOption != null);
+  const mcCorrect = mcAnswered.filter(a => {
+    const q = emQuizSet?.questions.find(q => q.id === a.questionId);
+    return q?.correctAnswer != null && a.selectedOption === q.correctAnswer;
+  }).length;
+  const mcTotal = emQuizSet?.questions.length ?? 0;
+  const mcPercent = mcTotal > 0 ? Math.round((mcCorrect / mcTotal) * 100) : 0;
 
   return (
     <div className="min-h-screen bg-white p-4 py-8">
@@ -221,7 +250,7 @@ export default function StudentDetailPage() {
           </div>
 
           {/* Summary Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t-2 border-slate-100">
+          <div className={`grid grid-cols-2 ${isEmotionMastery ? 'md:grid-cols-5' : 'md:grid-cols-4'} gap-4 mt-6 pt-6 border-t-2 border-slate-100`}>
             <div className="text-center">
               <p className="text-sm text-neutral-600 mb-1">Hoàn thành</p>
               <p className="text-3xl font-bold text-sky-600">
@@ -237,25 +266,28 @@ export default function StudentDetailPage() {
                 {result.emotion.final_emotion}
               </div>
             </div>
-            {result.quizSetId === 'emotion-mastery-v1' ? (
+            {isEmotionMastery ? (
               <>
-                {/* Emotion mastery: physicalLevel + engagementLevel */}
+                {/* Emotion mastery: MC score + physicalLevel + engagementLevel */}
+                <div className="text-center">
+                  <p className="text-sm text-neutral-600 mb-1">Tổng điểm</p>
+                  <p className="text-3xl font-bold text-emerald-600">
+                    {mcAnswered.length > 0 ? `${mcCorrect}/${mcTotal}` : '—'}
+                  </p>
+                  <p className="text-xs text-neutral-500 mt-1">{mcPercent}% đúng</p>
+                </div>
                 <div className="text-center">
                   <p className="text-sm text-neutral-600 mb-1">Mức độ cảm xúc</p>
-                  {result.physicalLevel != null ? (
-                    <p className="text-3xl font-bold text-indigo-600">Mức {result.physicalLevel}</p>
-                  ) : (
-                    <p className="text-3xl font-bold text-neutral-300">—</p>
-                  )}
+                  {(() => { const v = parseLevel(result.physicalLevel); return v ? (
+                    <p className="text-3xl font-bold text-indigo-600">Mức {v}</p>
+                  ) : <p className="text-3xl font-bold text-neutral-300">—</p>; })()}
                   <p className="text-xs text-neutral-500 mt-1">từ video phân tích</p>
                 </div>
                 <div className="text-center">
                   <p className="text-sm text-neutral-600 mb-1">Mức độ tập trung</p>
-                  {result.engagementLevel != null ? (
-                    <p className="text-3xl font-bold text-teal-600">Mức {result.engagementLevel}</p>
-                  ) : (
-                    <p className="text-3xl font-bold text-neutral-300">—</p>
-                  )}
+                  {(() => { const v = parseLevel(result.engagementLevel); return v ? (
+                    <p className="text-3xl font-bold text-teal-600">Mức {v}</p>
+                  ) : <p className="text-3xl font-bold text-neutral-300">—</p>; })()}
                   <p className="text-xs text-neutral-500 mt-1">từ API engagement</p>
                 </div>
               </>
@@ -304,16 +336,25 @@ export default function StudentDetailPage() {
                   </p>
                 </div>
 
-                {/* Answer Length */}
-                <div className="card">
-                  <h2 className="text-lg font-bold text-neutral-700 mb-3">
-                    📝 Độ dài câu trả lời
-                  </h2>
-                  <AnswerLengthChart answers={result.answers} />
-                  <p className="text-xs text-neutral-500 mt-2">
-                    Màu xanh = chi tiết, đỏ = quá ngắn
-                  </p>
-                </div>
+                {/* Answer Length — only for text-answer (psychology) quiz */}
+                {isEmotionMastery ? (
+                  <div className="card">
+                    <h2 className="text-lg font-bold text-neutral-700 mb-3">
+                      🎯 Mức độ tập trung theo câu
+                    </h2>
+                    <EngagementBarChart answers={result.answers} />
+                  </div>
+                ) : (
+                  <div className="card">
+                    <h2 className="text-lg font-bold text-neutral-700 mb-3">
+                      📝 Độ dài câu trả lời
+                    </h2>
+                    <AnswerLengthChart answers={result.answers} />
+                    <p className="text-xs text-neutral-500 mt-2">
+                      Màu xanh = chi tiết, đỏ = quá ngắn
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Insights & Red Flags */}
@@ -467,16 +508,49 @@ export default function StudentDetailPage() {
                         Câu trả lời của học sinh:
                       </label>
                       {answer.isAnswered ? (
-                        <div className="p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
-                          <p className="text-neutral-800 whitespace-pre-wrap">
-                            {answer.answerText}
-                          </p>
-                        </div>
+                        isEmotionMastery && question?.options ? (
+                          /* MC: show all options with correct/wrong highlight */
+                          <div className="flex flex-col gap-2">
+                            {question.options.map((opt, optIdx) => {
+                              const isCorrect  = optIdx === question.correctAnswer;
+                              const isSelected = optIdx === answer.selectedOption;
+                              const label = ['A', 'B', 'C', 'D'][optIdx];
+                              let bg = 'bg-slate-50 border-slate-200 text-neutral-600';
+                              let icon = '';
+                              if (isCorrect && isSelected) {
+                                bg = 'bg-green-100 border-green-500 text-green-800 font-bold';
+                                icon = '✅';
+                              } else if (isCorrect && !isSelected) {
+                                bg = 'bg-green-50 border-green-400 text-green-700 font-semibold';
+                                icon = '✓';
+                              } else if (!isCorrect && isSelected) {
+                                bg = 'bg-red-100 border-red-500 text-red-800 font-bold';
+                                icon = '❌';
+                              }
+                              return (
+                                <div key={optIdx}
+                                  className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all ${bg}`}
+                                >
+                                  <span className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-black flex-shrink-0 ${
+                                    isCorrect ? 'bg-green-500 text-white'
+                                    : isSelected ? 'bg-red-500 text-white'
+                                    : 'bg-slate-300 text-slate-600'
+                                  }`}>{label}</span>
+                                  <span className="flex-1 text-sm">{opt}</span>
+                                  {icon && <span className="text-lg">{icon}</span>}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          /* Text answer */
+                          <div className="p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
+                            <p className="text-neutral-800 whitespace-pre-wrap">{answer.answerText}</p>
+                          </div>
+                        )
                       ) : (
                         <div className="p-4 bg-slate-50 border-2 border-slate-200 rounded-lg">
-                          <p className="text-neutral-400 italic">
-                            Chưa trả lời
-                          </p>
+                          <p className="text-neutral-400 italic">Chưa trả lời</p>
                         </div>
                       )}
                     </div>
@@ -484,27 +558,35 @@ export default function StudentDetailPage() {
                     {/* Analysis section — engagement for emotion-mastery, LLM for psychology */}
                     {result.quizSetId === 'emotion-mastery-v1' ? (
                       /* Engagement score section */
-                      answer.engagementScore ? (
-                        <div className="mb-4">
-                          <label className="text-xs font-bold text-neutral-600 uppercase mb-2 block">
-                            🎯 Đánh giá mức độ tập trung (Engagement):
-                          </label>
-                          <div className="p-4 bg-gradient-to-r from-teal-50 to-cyan-50 border-2 border-teal-200 rounded-lg">
-                            <div className="flex items-center gap-3">
-                              {answer.engagementScore.level != null ? (
-                                <span className="px-4 py-2 rounded-xl text-base font-black bg-teal-500 text-white shadow">
-                                  Mức {answer.engagementScore.level}
+                      answer.engagementScore ? (() => {
+                        const rawStatus = (answer.engagementScore!.raw as Record<string, unknown>)?.status;
+                        const isEngaged = typeof rawStatus === 'string'
+                          ? rawStatus.toLowerCase() === 'engaged'
+                          : (answer.engagementScore!.level ?? 0) >= 3;
+                        const statusLabel = typeof rawStatus === 'string' ? rawStatus : (isEngaged ? 'Engaged' : 'DisEngaged');
+                        return (
+                          <div className="mb-4">
+                            <label className="text-xs font-bold text-neutral-600 uppercase mb-2 block">
+                              🎯 Mức độ tập trung (Engagement):
+                            </label>
+                            <div className={`p-4 rounded-lg border-2 ${isEngaged
+                              ? 'bg-green-50 border-green-300'
+                              : 'bg-red-50 border-red-300'
+                            }`}>
+                              <div className="flex items-center gap-3">
+                                <span className={`px-4 py-2 rounded-xl text-base font-black text-white shadow ${
+                                  isEngaged ? 'bg-emerald-500' : 'bg-rose-500'
+                                }`}>
+                                  {isEngaged ? '✅' : '❌'} {statusLabel}
                                 </span>
-                              ) : (
-                                <span className="text-sm text-neutral-400 italic">Không xác định được</span>
-                              )}
-                              <span className="text-xs text-teal-600">
-                                Được đo lúc {new Date(answer.engagementScore.analyzedAt).toLocaleTimeString('vi-VN')}
-                              </span>
+                                <span className={`text-xs ${isEngaged ? 'text-green-600' : 'text-red-500'}`}>
+                                  Đo lúc {new Date(answer.engagementScore!.analyzedAt).toLocaleTimeString('vi-VN')}
+                                </span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ) : null
+                        );
+                      })() : null
                     ) : (
                       /* LLM Sentiment section — psychology quiz */
                       answer.textSentiment && (() => {

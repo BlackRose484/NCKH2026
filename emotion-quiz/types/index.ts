@@ -7,6 +7,7 @@ export interface Question {
   placeholder?: string;
   type?: 'text' | 'multiple-choice'; // default 'text'
   options?: string[];               // MC answer choices
+  correctAnswer?: number;           // index of correct option (0-based) for MC
 }
 
 export interface TextSentimentScore {

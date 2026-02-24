@@ -1,96 +1,78 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { getAllQuizSets, QuizSet } from '@/lib/quizSets';
+import { getAllQuizSets } from '@/lib/quizSets';
 
 export default function QuizSelectionPage() {
-  const router = useRouter();
-  const [selectedQuiz, setSelectedQuiz] = useState<string | null>(null);
+  const router   = useRouter();
   const quizSets = getAllQuizSets();
 
-  const handleStartQuiz = (quizSetId: string) => {
-    // Store selected quiz in sessionStorage
+  const handleStart = (quizSetId: string) => {
     sessionStorage.setItem('selectedQuizSetId', quizSetId);
     router.push('/quiz');
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-sky-50 via-white to-indigo-50 p-4 py-12">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-sky-50 via-white to-indigo-50 flex flex-col items-center justify-center p-6">
+      <div className="w-full max-w-2xl">
+
         {/* Header */}
-        <div className="text-center mb-12">
-          <div className="flex justify-center mb-4">
-            <Image src="/quiz.svg" alt="Quiz" width={80} height={80} />
+        <div className="text-center mb-10">
+          <div className="flex justify-center mb-3">
+            <Image src="/hero.svg" alt="Quiz" width={64} height={64} />
           </div>
-          <h1 className="text-4xl font-bold text-neutral-700 mb-3">
-            Chọn bộ câu hỏi
-          </h1>
-          <p className="text-neutral-600 text-lg">
-            Hãy chọn bộ câu hỏi bạn muốn thực hiện
-          </p>
+          <h1 className="text-3xl font-bold text-neutral-700 mb-1">Chọn bộ câu hỏi</h1>
+          <p className="text-neutral-500 text-sm">Hãy chọn bộ câu hỏi bạn muốn thực hiện</p>
         </div>
 
-        {/* Quiz Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        {/* Cards */}
+        <div className="flex flex-col gap-4 mb-8">
           {quizSets.map((quiz) => (
-            <div
+            <button
               key={quiz.id}
-              className={`card cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-2xl ${
-                selectedQuiz === quiz.id ? 'ring-4 ring-sky-500' : ''
-              }`}
-              onClick={() => setSelectedQuiz(quiz.id)}
+              onClick={() => handleStart(quiz.id)}
+              className="w-full text-left rounded-2xl overflow-hidden shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.99] focus:outline-none focus:ring-4 focus:ring-sky-300"
             >
-              {/* Quiz Icon & Color Header */}
-              <div className={`bg-gradient-to-br ${quiz.color} p-6 rounded-t-2xl -m-6 mb-4`}>
-                <div className="text-6xl text-center mb-2">{quiz.icon}</div>
-                <h2 className="text-2xl font-bold text-white text-center">
-                  {quiz.name}
-                </h2>
-              </div>
-
-              {/* Quiz Details */}
-              <div className="space-y-3">
-                <p className="text-neutral-600 text-sm leading-relaxed">
-                  {quiz.description}
-                </p>
-
-                <div className="flex items-center justify-between pt-3 border-t-2 border-slate-100">
-                  <div className="text-center">
-                    <p className="text-xs text-neutral-500">Số câu hỏi</p>
-                    <p className="text-lg font-bold text-sky-600">{quiz.totalQuestions}</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-xs text-neutral-500">Thời gian</p>
-                    <p className="text-lg font-bold text-green-600">~{quiz.estimatedMinutes} phút</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-xs text-neutral-500">Danh mục</p>
-                    <p className="text-lg font-bold text-purple-600">{quiz.category}</p>
-                  </div>
+              <div className="flex items-stretch">
+                {/* Colour strip + icon */}
+                <div className={`bg-gradient-to-b ${quiz.color} flex flex-col items-center justify-center px-6 py-5 min-w-[96px]`}>
+                  <span className="text-4xl leading-none">{quiz.icon}</span>
                 </div>
 
-                {/* Start Button */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleStartQuiz(quiz.id);
-                  }}
-                  className="btn-primary w-full mt-4"
-                >
-                  Bắt đầu làm bài
-                </button>
+                {/* Content */}
+                <div className="flex-1 bg-white px-5 py-4 flex flex-col justify-between">
+                  <div>
+                    <h2 className="text-lg font-bold text-neutral-800 mb-0.5">{quiz.name}</h2>
+                    <p className="text-xs text-neutral-500 leading-snug">{quiz.description}</p>
+                  </div>
+
+                  {/* Meta chips */}
+                  <div className="flex items-center gap-3 mt-3">
+                    <span className="flex items-center gap-1 text-xs font-medium bg-sky-50 text-sky-700 px-2.5 py-1 rounded-full">
+                      📋 {quiz.totalQuestions} câu
+                    </span>
+                    <span className="flex items-center gap-1 text-xs font-medium bg-green-50 text-green-700 px-2.5 py-1 rounded-full">
+                      ⏱ ~{quiz.estimatedMinutes} phút
+                    </span>
+                    <span className="flex items-center gap-1 text-xs font-medium bg-purple-50 text-purple-700 px-2.5 py-1 rounded-full">
+                      🏷 {quiz.category}
+                    </span>
+                    <span className="ml-auto text-xs font-bold text-sky-600 flex items-center gap-1">
+                      Bắt đầu →
+                    </span>
+                  </div>
+                </div>
               </div>
-            </div>
+            </button>
           ))}
         </div>
 
-        {/* Back Button */}
+        {/* Back */}
         <div className="text-center">
           <button
             onClick={() => router.push('/')}
-            className="btn-outline px-8"
+            className="text-sm text-neutral-500 hover:text-neutral-700 transition-colors"
           >
             ← Quay lại trang chủ
           </button>
