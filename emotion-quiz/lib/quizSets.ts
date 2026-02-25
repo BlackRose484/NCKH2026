@@ -17,36 +17,65 @@ export interface QuizSet {
 // ─────────────────────────────────────────────────────────────────────────────
 const psychologyQuestions: Question[] = [
   // I. Gia đình (1–7)
-  { id: 1,  question: 'Em mong gia đình em',                                                   category: 'Gia đình',               placeholder: 'Ví dụ: luôn hạnh phúc, yêu thương nhau...' },
-  { id: 2,  question: 'Cha mẹ nghĩ rằng em là',                                                category: 'Gia đình',               placeholder: 'Ví dụ: đứa con ngoan, chăm chỉ...' },
-  { id: 3,  question: 'Người em hay trò chuyện, tâm sự nhất trong gia đình là',               category: 'Gia đình',               placeholder: 'Ví dụ: mẹ, ba, anh/chị...' },
-  { id: 4,  question: 'Em không thích… trong gia đình',                                        category: 'Gia đình',               placeholder: 'Ví dụ: khi ba mẹ cãi nhau...' },
-  { id: 5,  question: 'Ở nhà, em thường cảm thấy',                                             category: 'Gia đình',               placeholder: 'Ví dụ: thoải mái, vui vẻ, lo lắng...' },
-  { id: 6,  question: 'Khi có chuyện không vui trong gia đình, em sẽ',                         category: 'Gia đình',               placeholder: 'Ví dụ: vào phòng một mình, xem phim...' },
-  { id: 7,  question: 'Điều em mong cha mẹ hiểu ở em là',                                      category: 'Gia đình',               placeholder: 'Ví dụ: em cũng đang cố gắng...' },
+    { id: 1,  question: 'Em mong gia đình em', category: 'Gia đình',
+    placeholder: 'Ví dụ: bình thường, hay cãi nhau, luôn yêu thương nhau' },
 
-  // II. Trường học – Thầy cô (8)
-  { id: 8,  question: 'Em cảm thấy thầy cô',                                                   category: 'Thầy cô',                placeholder: 'Ví dụ: rất quan tâm đến học sinh...' },
+  { id: 2,  question: 'Cha mẹ nghĩ rằng em là', category: 'Gia đình',
+    placeholder: 'Ví dụ: hay làm cha mẹ lo, con ngoan, bình thường' },
 
-  // II. Trường học – Bạn bè (9–10)
-  { id: 9,  question: 'Hầu hết các bạn của em',                                                category: 'Bạn bè',                 placeholder: 'Ví dụ: rất thân thiện, hay giúp đỡ...' },
-  { id: 10, question: 'Các bạn đối xử với em',                                                  category: 'Bạn bè',                 placeholder: 'Ví dụ: tốt bụng, đôi khi trêu đùa...' },
+  { id: 3,  question: 'Người em hay trò chuyện, tâm sự nhất trong gia đình là', category: 'Gia đình',
+    placeholder: 'Ví dụ: không có ai, mẹ, người thân' },
 
-  // II. Trường học – Học tập (11–13)
-  { id: 11, question: 'Em thấy việc học ở trường',                                              category: 'Học tập',                placeholder: 'Ví dụ: thú vị, khó, vừa sức...' },
-  { id: 12, question: 'Em thấy các bài kiểm tra trên lớp',                                      category: 'Học tập',                placeholder: 'Ví dụ: căng thẳng, dễ, công bằng...' },
-  { id: 13, question: 'Khi điểm kiểm tra không như mong muốn, em sẽ',                          category: 'Học tập',                placeholder: 'Ví dụ: buồn, cố gắng hơn lần sau...' },
+  { id: 4,  question: 'Em không thích… trong gia đình', category: 'Gia đình',
+    placeholder: 'Ví dụ: hay la mắng, không thích gì, đôi lúc cãi nhau' },
 
-  // II. Trường học – Hoạt động khác (14–16)
-  { id: 14, question: 'Trong các giờ ra chơi hoặc hoạt động chung, em thường',                 category: 'Hoạt động trường học',   placeholder: 'Ví dụ: chơi với bạn, ngồi đọc sách...' },
-  { id: 15, question: 'Khi gặp chuyện không như ý ở trường, em sẽ',                            category: 'Hoạt động trường học',   placeholder: 'Ví dụ: nói với thầy cô, kể với bạn...' },
-  { id: 16, question: 'Ở trường, em cảm thấy',                                                  category: 'Hoạt động trường học',   placeholder: 'Ví dụ: vui, an toàn, áp lực...' },
+  { id: 5,  question: 'Ở nhà, em thường cảm thấy', category: 'Gia đình',
+    placeholder: 'Ví dụ: buồn hoặc lo lắng, bình thường, vui vẻ' },
 
-  // III. Bản thân (17–20)
-  { id: 17, question: 'Khi mọi việc không như ý, em',                                           category: 'Bản thân',               placeholder: 'Ví dụ: tìm cách giải quyết, buồn...' },
-  { id: 18, question: 'Mọi người thường nhận xét em là',                                        category: 'Bản thân',               placeholder: 'Ví dụ: vui tính, chăm chỉ, hướng nội...' },
-  { id: 19, question: 'Khi làm sai điều gì đó, em thường',                                      category: 'Bản thân',               placeholder: 'Ví dụ: xin lỗi, tự trách mình...' },
-  { id: 20, question: 'Em nghĩ bản thân mình là người',                                         category: 'Bản thân',               placeholder: 'Ví dụ: tốt bụng, hay lo lắng...' },
+  { id: 6,  question: 'Khi có chuyện không vui trong gia đình, em sẽ', category: 'Gia đình',
+    placeholder: 'Ví dụ: tránh mọi người, nói chuyện, im lặng' },
+
+  { id: 7,  question: 'Điều em mong cha mẹ hiểu ở em là', category: 'Gia đình',
+    placeholder: 'Ví dụ: em hay bị áp lực, em cố gắng, em cũng có cảm xúc' },
+
+  { id: 8,  question: 'Em cảm thấy thầy cô', category: 'Thầy cô',
+    placeholder: 'Ví dụ: hay nghiêm khắc, quan tâm, bình thường' },
+
+  { id: 9,  question: 'Hầu hết các bạn của em', category: 'Bạn bè',
+    placeholder: 'Ví dụ: hay gây khó chịu, thân thiện, bình thường' },
+
+  { id: 10, question: 'Các bạn đối xử với em', category: 'Bạn bè',
+    placeholder: 'Ví dụ: không đặc biệt, hay trêu chọc, tốt bụng' },
+
+  { id: 11, question: 'Em thấy việc học ở trường', category: 'Học tập',
+    placeholder: 'Ví dụ: khó và áp lực, bình thường, thú vị' },
+
+  { id: 12, question: 'Em thấy các bài kiểm tra trên lớp', category: 'Học tập',
+    placeholder: 'Ví dụ: rất căng thẳng, vừa sức, bình thường' },
+
+  { id: 13, question: 'Khi điểm kiểm tra không như mong muốn, em sẽ', category: 'Học tập',
+    placeholder: 'Ví dụ: chán nản, cố gắng hơn, buồn một lúc' },
+
+  { id: 14, question: 'Trong các giờ ra chơi hoặc hoạt động chung, em thường', category: 'Hoạt động trường học',
+    placeholder: 'Ví dụ: tránh tham gia, chơi với bạn, ở một mình' },
+
+  { id: 15, question: 'Khi gặp chuyện không như ý ở trường, em sẽ', category: 'Hoạt động trường học',
+    placeholder: 'Ví dụ: bỏ qua mọi thứ, nhờ giúp đỡ, im lặng' },
+
+  { id: 16, question: 'Ở trường, em cảm thấy', category: 'Hoạt động trường học',
+    placeholder: 'Ví dụ: áp lực, vui vẻ, bình thường' },
+
+  { id: 17, question: 'Khi mọi việc không như ý, em', category: 'Bản thân',
+    placeholder: 'Ví dụ: buồn và nản, tìm cách giải quyết, chấp nhận' },
+
+  { id: 18, question: 'Mọi người thường nhận xét em là', category: 'Bản thân',
+    placeholder: 'Ví dụ: khó gần, thân thiện, bình thường' },
+
+  { id: 19, question: 'Khi làm sai điều gì đó, em thường', category: 'Bản thân',
+    placeholder: 'Ví dụ: tự trách mình, nhận lỗi, im lặng' },
+
+  { id: 20, question: 'Em nghĩ bản thân mình là người', category: 'Bản thân',
+    placeholder: 'Ví dụ: hay lo lắng, tốt bụng, bình thường' },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
