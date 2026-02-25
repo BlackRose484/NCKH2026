@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Image from 'next/image';
-import { QuizResult } from '@/types';
+import { QuizResult, ScoreHistoryEntry } from '@/types';
 import { getQuizSetById } from '@/lib/quizSets';
 import { getEmotionConfig } from '@/lib/emotions';
 import { calculateStudentAnalytics } from '@/lib/studentAnalytics';
@@ -102,7 +102,26 @@ export default function StudentDetailPage() {
           const updatedResult = { ...result };
           const answerIndex = updatedResult.answers.findIndex(a => a.questionId === questionId);
           if (answerIndex !== -1 && updatedResult.answers[answerIndex].textSentiment) {
-            updatedResult.answers[answerIndex].textSentiment!.teacherOverride = {
+            const ts = updatedResult.answers[answerIndex].textSentiment!;
+            // Seed LLM entry if no history yet
+            if (!ts.scoreHistory) {
+              ts.scoreHistory = [{
+                score: ts.score,
+                author: 'llm',
+                authorName: ts.provider ?? 'LLM',
+                comment: ts.reasoning,
+                timestamp: ts.analyzedAt,
+              }];
+            }
+            // Append teacher entry
+            ts.scoreHistory = [...ts.scoreHistory, {
+              score: newScore as 0|1|2,
+              author: 'teacher',
+              authorName: 'Giáo viên',
+              comment: comment || undefined,
+              timestamp: new Date().toISOString(),
+            }];
+            ts.teacherOverride = {
               originalScore,
               newScore,
               overriddenBy: 'Teacher',
@@ -679,6 +698,93 @@ export default function StudentDetailPage() {
                         );
                       })()
                     )}
+
+                    {/* ── Score History Timeline ─────────────────────────── */}
+                    {answer.textSentiment && (() => {
+                      const rawHistory = answer.textSentiment.scoreHistory;
+                      let entries: ScoreHistoryEntry[];
+                      if (rawHistory && rawHistory.length > 0) {
+                        // Always show: first LLM entry + last teacher entry (max 2)
+                        const llmEntry     = rawHistory.find(e => e.author === 'llm');
+                        const teacherEntry = [...rawHistory].reverse().find(e => e.author === 'teacher');
+                        entries = [
+                          ...(llmEntry     ? [llmEntry]     : []),
+                          ...(teacherEntry ? [teacherEntry] : []),
+                        ];
+                      } else {
+                        // Legacy fallback: build from base + teacherOverride
+                        entries = [{
+                          score: answer.textSentiment.score,
+                          author: 'llm',
+                          authorName: answer.textSentiment.provider ?? 'LLM',
+                          comment: answer.textSentiment.reasoning,
+                          timestamp: answer.textSentiment.analyzedAt,
+                        }];
+                        if (answer.textSentiment.teacherOverride) {
+                          const ov = answer.textSentiment.teacherOverride;
+                          entries.push({
+                            score: ov.newScore,
+                            author: 'teacher',
+                            authorName: ov.overriddenBy ?? 'Giáo viên',
+                            comment: ov.reason,
+                            timestamp: ov.overriddenAt,
+                          });
+                        }
+                      }
+                      const SCORE_LABEL: Record<number, { text: string; cls: string }> = {
+                        0: { text: '😊 Tích cực', cls: 'bg-green-100 text-green-800 border-green-300' },
+                        1: { text: '😐 Trung lập', cls: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
+                        2: { text: '😢 Tiêu cực', cls: 'bg-red-100 text-red-800 border-red-300' },
+                      };
+                      return (
+                        <div className="mt-4 mb-2">
+                          <p className="text-xs font-bold text-neutral-500 uppercase tracking-wide mb-3">
+                            📋 Lịch sử chấm điểm
+                          </p>
+                          <div className="relative pl-6 space-y-3">
+                            {/* vertical connector line */}
+                            <div className="absolute left-2.5 top-1 bottom-1 w-px bg-slate-200" />
+                            {entries.map((entry, i) => {
+                              const isLLM  = entry.author === 'llm';
+                              const isLast = i === entries.length - 1;
+                              const sm     = SCORE_LABEL[entry.score];
+                              return (
+                                <div key={i} className="relative flex gap-3 items-start">
+                                  {/* timeline dot */}
+                                  <div className={`absolute -left-3.5 mt-1.5 w-3.5 h-3.5 rounded-full border-2 border-white z-10 ${
+                                    isLLM ? 'bg-violet-400' : 'bg-amber-400'
+                                  }`} />
+                                  <div className={`flex-1 rounded-xl border p-3 ${isLast ? 'shadow-sm' : 'opacity-75'} ${
+                                    isLLM ? 'bg-violet-50 border-violet-200' : 'bg-amber-50 border-amber-200'
+                                  }`}>
+                                    {/* header */}
+                                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                                      <span className="text-sm font-bold text-neutral-700">
+                                        {isLLM ? '🤖' : '👩‍🏫'} {entry.authorName}
+                                      </span>
+                                      <span className={`text-[11px] px-2 py-0.5 rounded-full border font-semibold ${sm.cls}`}>
+                                        {sm.text}
+                                      </span>
+                                      {isLast && (
+                                        <span className="ml-auto text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-medium">
+                                          Mới nhất
+                                        </span>
+                                      )}
+                                    </div>
+                                    {entry.comment && (
+                                      <p className="text-xs text-neutral-600 italic mb-1">"{entry.comment}"</p>
+                                    )}
+                                    <p className="text-[10px] text-neutral-400">
+                                      {new Date(entry.timestamp).toLocaleString('vi-VN')}
+                                    </p>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Answer-Emotion Correlation */}
                     {answer.isAnswered && answerEmotionConfig && (

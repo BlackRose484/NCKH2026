@@ -35,7 +35,28 @@ export async function POST(
           };
         }
         
-        // Create or update teacher override
+        // ── Score History: always [LLM, latest teacher] ───────────
+        // 1. Seed LLM entry once
+        const llmEntry = {
+          score: answer.textSentiment.score,
+          author: 'llm',
+          authorName: answer.textSentiment.provider ?? 'LLM',
+          comment: answer.textSentiment.reasoning ?? undefined,
+          timestamp: answer.textSentiment.analyzedAt,
+        };
+        // 2. Always overwrite — keep only LLM + latest teacher (max 2 entries)
+        answer.textSentiment.scoreHistory = [
+          llmEntry,
+          {
+            score: update.newScore,
+            author: 'teacher',
+            authorName: update.overriddenBy ?? 'Giáo viên',
+            comment: update.reason ?? undefined,
+            timestamp: update.overriddenAt,
+          },
+        ];
+
+        // ── Backward-compat teacherOverride ───────────────────────
         answer.textSentiment.teacherOverride = {
           originalScore: update.originalScore,
           newScore: update.newScore,

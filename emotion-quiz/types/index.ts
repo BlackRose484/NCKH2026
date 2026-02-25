@@ -10,6 +10,14 @@ export interface Question {
   correctAnswer?: number;           // index of correct option (0-based) for MC
 }
 
+export interface ScoreHistoryEntry {
+  score: 0 | 1 | 2;
+  author: 'llm' | 'teacher';
+  authorName: string;       // e.g. "GPT-4o" or "Giáo viên"
+  comment?: string;         // LLM reasoning or teacher note
+  timestamp: string;
+}
+
 export interface TextSentimentScore {
   score: 0 | 1 | 2;  // 0: positive, 1: neutral, 2: negative
   confidence?: number;
@@ -18,7 +26,8 @@ export interface TextSentimentScore {
   source: 'llm' | 'fallback';
   analyzedAt: string;
   error?: string;
-  teacherOverride?: {
+  scoreHistory?: ScoreHistoryEntry[]; // full audit trail (llm + teacher edits)
+  teacherOverride?: {                 // kept for backward compat
     originalScore: 0 | 1 | 2;
     newScore: 0 | 1 | 2;
     overriddenBy: string;
