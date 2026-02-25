@@ -8,7 +8,6 @@ import QuizQuestion from '@/components/QuizQuestion';
 import ProgressBar from '@/components/ProgressBar';
 import { useSoundPlayer } from '@/components/SoundPlayer';
 import { getQuizSetById, defaultQuizSet } from '@/lib/quizSets';
-import { getSentimentAnalyzer } from '@/lib/llm/analyzer';
 import { QuizAnswer, StudentInfo, EmotionResult, EmotionType, Question, TextSentimentScore, EngagementScore } from '@/types';
 
 export default function QuizPage() {
@@ -226,23 +225,31 @@ export default function QuizPage() {
         }
       })();
 
-      // Text sentiment analysis (skip for MC engagement quiz)
+      // Text sentiment analysis — called server-side via /api/analyze-text
       let sentimentPromise: Promise<TextSentimentScore | undefined>;
       if (isMCQuiz) {
         sentimentPromise = Promise.resolve(undefined);
       } else {
-        const analyzer = getSentimentAnalyzer();
-        sentimentPromise = analyzer.analyze({
-          questionId,
-          questionText: currentQuestion.question,
-          answerText,
-          category: currentQuestion.category,
-        }).catch(() => ({
-          score: 1 as 0 | 1 | 2,
-          provider: 'Error',
-          source: 'fallback' as const,
-          analyzedAt: new Date().toISOString(),
-        }));
+        sentimentPromise = fetch('/api/analyze-text', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            questionId,
+            questionText: currentQuestion.question,
+            answerText,
+            category: currentQuestion.category,
+          }),
+        })
+          .then(r => r.ok ? r.json() : Promise.reject(`HTTP ${r.status}`))
+          .catch((err) => {
+            console.warn(`[TextSentiment Q${questionId}] ⚠️ FALLBACK:`, err);
+            return {
+              score: 1 as 0 | 1 | 2,
+              provider: 'Error',
+              source: 'fallback' as const,
+              analyzedAt: new Date().toISOString(),
+            };
+          });
       }
 
       // Engagement analysis (for MC quiz — uses /predict_engagement_video)

@@ -8,8 +8,14 @@ export class GeminiProvider extends BaseLLMProvider {
         () => this.callGemini(context)
       );
 
+      // Prefer score extracted from JSON by callGemini; fall back to regex
+      const score: 0 | 1 | 2 =
+        response.score != null && [0, 1, 2].includes(response.score as number)
+          ? (response.score as 0 | 1 | 2)
+          : this.parseScore(response.content);
+
       return {
-        score: this.parseScore(response.content),
+        score,
         confidence: response.confidence,
         reasoning: response.reasoning,
         provider: this.getName(),
@@ -24,7 +30,7 @@ export class GeminiProvider extends BaseLLMProvider {
 
   private async callGemini(context: AnalysisContext) {
     const prompt = this.buildPrompt(context);
-    const model = this.config.model || 'gemini-pro';
+    const model = this.config.model || 'gemini-2.0-flash';
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.config.apiKey}`,
@@ -32,12 +38,10 @@ export class GeminiProvider extends BaseLLMProvider {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{
-            parts: [{ text: prompt }],
-          }],
+          contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
-            temperature: 0.3,
-            maxOutputTokens: 200,
+            temperature: 0.2,
+            maxOutputTokens: 500,
           },
         }),
       }
@@ -49,21 +53,30 @@ export class GeminiProvider extends BaseLLMProvider {
     }
 
     const data = await response.json();
-    const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const rawContent: string = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
-    // Try to parse JSON response
+    // Strip markdown code fences that Gemini often adds: ```json ... ```
+    const stripped = rawContent
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```\s*$/, '')
+      .trim();
+
+    // Try to parse JSON
     try {
-      const parsed = JSON.parse(content);
+      const parsed = JSON.parse(stripped);
       return {
-        content,
-        confidence: 0.8,
-        reasoning: parsed.reasoning || content,
+        content: stripped,
+        confidence: 0.85,
+        reasoning: typeof parsed.reasoning === 'string' ? parsed.reasoning : stripped,
+        score: parsed.score,
       };
     } catch {
+      // Not valid JSON — fall back to raw text
       return {
-        content,
-        confidence: 0.7,
-        reasoning: content,
+        content: stripped,
+        confidence: 0.6,
+        reasoning: stripped,
+        score: undefined,
       };
     }
   }
